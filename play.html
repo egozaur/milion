@@ -54,7 +54,6 @@ body{font-size:17px}
 .list b{font:600 14px/1 var(--disp);color:var(--gold2)}
 .list .l{display:flex;align-items:center;gap:10px;min-width:0}
 .list .l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.homebtn{font:800 13px/1 var(--font);color:var(--muted);padding:8px 10px;border-radius:999px;border:1.5px solid var(--line)}
 </style>
 </head>
 <body>
@@ -86,7 +85,7 @@ const ICON = {
   swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h13l-3.5-3.5M20 15H7l3.5 3.5"/></svg>',
 };
 const logo = '<span class="mini">MILI<span class="mark">1</span>NERZY</span>';
-const homeBtn = ML.APP ? '<button class="homebtn" data-act="home">⌂ PL3Y</button>' : '';
+const homeBtn = ML.APP ? '<button class="tolobby" data-act="home">← Lobby</button>' : '';
 const medal = n => `<span class="medal${n <= 3 ? ' m' + n : ''}">${n}</span>`;
 
 // ---------- licznik ----------
@@ -156,7 +155,7 @@ function join() {
 const STATUS = { online: '', connecting: 'łączenie…', reconnecting: 'ponowne łączenie…', noroom: 'pokój nie istnieje', revoked: 'rozłączono', closed: '' };
 function header() {
   const v = st.view;
-  return `<header>${logo}<span class="grow"></span>${st.status && STATUS[st.status] ? `<span class="status">${STATUS[st.status]}</span>` : ''}${v ? `<span class="me">${esc(v.me.name)}</span><span class="pts">${fmt(v.me.total)}</span>` : ''}${homeBtn}</header>`;
+  return `<header>${homeBtn}${logo}<span class="grow"></span>${st.status && STATUS[st.status] ? `<span class="status">${STATUS[st.status]}</span>` : ''}${v ? `<span class="me">${esc(v.me.name)}</span><span class="pts">${fmt(v.me.total)}</span>` : ''}</header>`;
 }
 function joinView() {
   const needCode = !st.code;

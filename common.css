@@ -54,6 +54,12 @@ body.win #fx .spot{background:linear-gradient(180deg,rgba(255,226,140,.38),rgba(
 @media (hover:hover){.btn.ghost:hover{box-shadow:inset 0 0 0 1.5px var(--gold)}}
 .btn.big{font-size:1.15em;padding:1em 2.2em}
 .btn.sm{padding:.55em 1.1em;font-size:.9em}
+/* Powrót do lobby PL3Y (TV i telefon): ten sam kształt co w Tajniakach, kolory studia */
+.tolobby{display:inline-flex;align-items:center;gap:.35em;flex:0 0 auto;padding:.4em .8em;border-radius:10px;white-space:nowrap;
+  font:800 .9rem/1.3 var(--font);text-decoration:none;color:var(--text);background:rgba(13,26,82,.72);border:2px solid var(--line);
+  transition:border-color .15s,color .15s,background .15s}
+@media (hover:hover){.tolobby:hover{border-color:var(--gold);color:var(--gold2);background:rgba(21,39,122,.85)}}
+.tolobby:active{transform:translateY(1px)}
 .link{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
 
 /* ---------- panele ---------- */
