@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Milion · gracz</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="PL3Y">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#03061a">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Unbounded:wght@600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+body{font-size:17px}
+.ph{flex:1;display:flex;flex-direction:column;gap:14px;padding:max(14px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom));max-width:620px;width:100%;margin:0 auto}
+.ph header{display:flex;align-items:center;gap:10px}
+.ph header .grow{flex:1}
+.ph header .me{font-weight:800}
+.ph header .pts{font:700 14px/1 var(--disp);color:var(--gold2);background:rgba(0,0,0,.3);padding:7px 11px;border-radius:999px}
+.mini{font:800 34px/1 var(--disp);letter-spacing:.03em;background:linear-gradient(180deg,#fff6d6,var(--gold) 50%,var(--gold3));-webkit-background-clip:text;background-clip:text;color:transparent}
+.mini .mark{font-size:.6em}
+.info{font:800 14px/1.3 var(--disp);color:var(--muted)}
+.info em{font-style:normal;color:var(--gold2)}
+.qbox{font-size:clamp(18px,5vw,24px);padding:18px}
+.answers{grid-template-columns:1fr}
+.ans{min-height:62px;font-size:clamp(16px,4.6vw,20px)}
+.center{flex:1;display:flex;flex-direction:column;justify-content:center;gap:16px;text-align:center}
+.center h2{margin:0;font:800 clamp(24px,7vw,34px)/1.15 var(--disp)}
+.big{font:800 clamp(36px,11vw,56px)/1 var(--disp);color:var(--gold2)}
+.big.bad{color:var(--bad)}
+.note{color:var(--muted);font-weight:700;text-align:center}
+.trow{display:flex;align-items:center;gap:12px}
+.trow .timer{flex:1}
+.tnum{font-size:26px}
+.form{display:flex;flex-direction:column;gap:12px;align-items:stretch}
+.field{background:rgba(3,6,26,.6);border:1.5px solid var(--line);color:var(--text);border-radius:999px;padding:.9em 1.2em;text-align:center;font-weight:800;font-size:18px}
+.field:focus{outline:none;border-color:var(--gold)}
+.err{color:var(--bad);font-weight:700}
+.vote{padding:14px;display:flex;flex-direction:column;gap:12px}
+.vote .ans{min-height:52px}
+.lifes .life{width:74px;height:50px}
+.aud{height:130px}
+.list{display:flex;flex-direction:column;gap:6px}
+.list div{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.04);font-weight:700}
+.list div.me{background:rgba(246,198,78,.12);box-shadow:inset 0 0 0 1.5px var(--gold3)}
+.list div.out{opacity:.45}
+.list b{font:600 14px/1 var(--disp);color:var(--gold2)}
+.list .l{display:flex;align-items:center;gap:10px;min-width:0}
+.list .l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.homebtn{font:800 13px/1 var(--font);color:var(--muted);padding:8px 10px;border-radius:999px;border:1.5px solid var(--line)}
+</style>
+</head>
+<body>
+<div id="fx" aria-hidden="true"><div class="spot l"></div><div class="spot r"></div><div class="floor"></div></div>
+<div id="app"></div>
+<div id="ovl"></div>
+<script src="ml.js"></script>
+<script>
+'use strict';
+const { LADDER, LET, esc, zl, fmt, Snd } = ML;
+const $app = document.getElementById('app'), $ovl = document.getElementById('ovl');
+Snd.music(false);
+
+const st = { code: '', token: '', id: '', conn: null, status: '', view: null, err: '', joining: false, kicked: false };
+// ?slot=N (tylko testy): osobny token dla kilku „telefonów” w jednej przeglądarce.
+const SLOT = (new URLSearchParams(location.search).get('slot') || '').replace(/\W/g, '');
+const tokKey = c => (ML.LOCAL ? 'milion_pl_' : 'milion_p_') + c + (SLOT ? '_' + SLOT : '');
+function readHash() { return (location.hash.slice(1).match(/[A-Za-z0-9]{5}/) || [''])[0].toUpperCase(); }
+
+// ---------- rysowanie ----------
+let skel = null;
+function page(html) { skel = null; if ($app._h !== html) { $app.innerHTML = html; $app._h = html; } }
+function paint(key, skeleton, regions) {
+  if (skel !== key) { $app.innerHTML = skeleton; $app._h = null; skel = key; }
+  for (const id in regions) { const el = document.getElementById(id); if (el && el._h !== regions[id]) { el.innerHTML = regions[id]; el._h = regions[id]; } }
+}
+const ICON = {
+  aud: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="5" width="4" height="16" rx="1"/><rect x="17" y="9" width="4" height="12" rx="1"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h13l-3.5-3.5M20 15H7l3.5 3.5"/></svg>',
+};
+const logo = '<span class="mini">MILI<span class="mark">1</span>N</span>';
+const homeBtn = ML.APP ? '<button class="homebtn" data-act="home">⌂ PL3Y</button>' : '';
+const medal = n => `<span class="medal${n <= 3 ? ' m' + n : ''}">${n}</span>`;
+
+// ---------- licznik ----------
+const T = { deadline: 0, total: 0, last: -1 };
+function loop() {
+  requestAnimationFrame(loop);
+  if (!T.deadline) return;
+  const left = Math.max(0, T.deadline - performance.now()), low = left < 5500;
+  const bar = document.querySelector('#r-timer .timer i'), num = document.querySelector('#r-timer .tnum');
+  if (bar) { bar.style.transform = `scaleX(${T.total ? left / T.total : 0})`; bar.parentNode.classList.toggle('low', low); }
+  const s = Math.ceil(left / 1000);
+  if (num) { num.textContent = s; num.classList.toggle('low', low); }
+  if (s !== T.last) { if (low && s > 0 && T.last > s && canAnswer()) { Snd.play('tick'); try { navigator.vibrate && navigator.vibrate(30); } catch (e) {} } T.last = s; }
+  if (!left) T.deadline = 0;
+}
+requestAnimationFrame(loop);
+const canAnswer = () => { const v = st.view; return v && v.phase === 'q' && !v.me.out && v.me.ans == null; };
+
+// ---------- połączenie ----------
+function connect() {
+  if (st.conn) st.conn.stop();
+  st.err = ''; st.status = 'connecting';
+  st.conn = new ML.Conn({
+    code: st.code,
+    hello: () => st.token ? { t: 'hello', player: st.token } : { t: 'hello', join: ML.nick.get() },
+    onStatus: s => { st.status = s; if (s === 'revoked') st.kicked = true; render(); },
+    onMessage: m => {
+      if (m.t === 'welcome') {
+        st.token = m.token; st.id = m.id; st.joining = false;
+        try { localStorage.setItem(tokKey(st.code), m.token); } catch (e) {}
+      } else if (m.t === 'error') {
+        st.joining = false;
+        if (m.code === 'badplayer') { forget(); st.err = m.err; }
+        else if (m.code === 'started' || m.code === 'full' || m.code === 'noname') { st.err = m.err; st.conn.stop('closed'); st.conn = null; }
+        else st.err = m.err || 'Błąd';
+      } else if (m.t === 'state') onState(m.view);
+      render();
+    },
+  });
+}
+function forget() { st.token = ''; try { localStorage.removeItem(tokKey(st.code)); } catch (e) {} if (st.conn) { st.conn.stop('closed'); st.conn = null; } }
+
+function onState(v) {
+  const old = st.view; st.view = v;
+  if (v.phase === 'q') { T.deadline = performance.now() + v.left; T.total = v.time * 1000; } else T.deadline = 0;
+  const changed = !old || old.phase !== v.phase || old.qi !== v.qi || old.round !== v.round;
+  if (changed && v.phase === 'reveal' && v.me.correct != null) {
+    Snd.play(v.me.correct ? 'good' : 'bad');
+    try { navigator.vibrate && navigator.vibrate(v.me.correct ? [40, 60, 40] : 300); } catch (e) {}
+  }
+  if (changed && v.phase === 'q' && !v.me.out) { Snd.play('tap'); }
+  if (changed) $ovl.innerHTML = '';
+}
+
+function join() {
+  const n = document.getElementById('nick');
+  const nick = n ? n.value.trim() : '';
+  if (!nick) { st.err = 'Wpisz swój nick.'; return render(); }
+  ML.nick.set(nick);
+  const c = document.getElementById('code');
+  if (c) { st.code = c.value.trim().toUpperCase(); if (!/^[A-Z0-9]{5}$/.test(st.code)) { st.err = 'Kod pokoju ma 5 znaków.'; return render(); } history.replaceState(null, '', '#' + st.code); }
+  st.joining = true; st.kicked = false; Snd.unlock(); Snd.play('tap');
+  connect(); render();
+}
+
+// ---------- widoki ----------
+const STATUS = { online: '', connecting: 'łączenie…', reconnecting: 'ponowne łączenie…', noroom: 'pokój nie istnieje', revoked: 'rozłączono', closed: '' };
+function header() {
+  const v = st.view;
+  return `<header>${logo}<span class="grow"></span>${st.status && STATUS[st.status] ? `<span class="status">${STATUS[st.status]}</span>` : ''}${v ? `<span class="me">${esc(v.me.name)}</span><span class="pts">${fmt(v.me.total)}</span>` : ''}${homeBtn}</header>`;
+}
+function joinView() {
+  const needCode = !st.code;
+  return `<div class="ph">${header()}<div class="center">
+    <h2>Dołącz do gry</h2>
+    ${st.kicked ? '<p class="note">Prowadzący usunął Cię z pokoju. Możesz dołączyć ponownie.</p>' : ''}
+    <div class="form">
+      ${needCode ? '<input class="field" id="code" maxlength="5" placeholder="KOD POKOJU" autocapitalize="characters" autocomplete="off" style="letter-spacing:.2em">' : `<p class="note">Pokój <b style="color:var(--gold2)">${esc(st.code)}</b></p>`}
+      <input class="field" id="nick" maxlength="16" placeholder="Twój nick" value="${esc(ML.nick.get())}" autocomplete="off" enterkeyhint="go">
+      <button class="btn big" data-act="join" ${st.joining ? 'disabled' : ''}>${st.joining ? 'Dołączam…' : 'Dołącz'}</button>
+      ${st.err ? `<p class="err">${esc(st.err)}</p>` : ''}
+    </div></div></div>`;
+}
+function listHtml(board, mark) {
+  return '<div class="list">' + board.map((p, i) => `<div class="${p.id === st.id ? 'me' : ''}${mark && p.out ? ' out' : ''}"><span class="l">${medal(i + 1)}<span>${esc(p.name)}</span></span><b>${fmt(p.total)}</b></div>`).join('') + '</div>';
+}
+function lobbyView() {
+  const v = st.view;
+  return page(`<div class="ph">${header()}<div class="center"><div class="kicker">Pokój ${esc(v.code)}</div><h2>Jesteś w grze!</h2>
+    <p class="note">Czekamy, aż prowadzący wystartuje mecz. Patrz na ekran TV.</p>
+    <div class="list">${v.board.map(p => `<div class="${p.id === st.id ? 'me' : ''}"><span class="l"><span>${esc(p.name)}</span></span></div>`).join('')}</div></div></div>`);
+}
+function answersHtml(q, o) {
+  const fifty = o.fifty || [];
+  return '<div class="answers">' + q.a.map((t, i) => {
+    let c = 'ans';
+    if (fifty.includes(i)) c += ' gone';
+    if (o.ok == null) { if (o.sel === i) c += ' sel'; }
+    else if (i === o.ok) c += ' good';
+    else if (o.sel === i) c += ' bad';
+    else c += ' dim';
+    const pct = o.pct ? `<span class="pct">${o.pct[i]}%</span>` : '';
+    return `<button class="${c}" data-act="${o.act || 'ans'}" data-i="${i}"${o.pid ? ` data-pid="${esc(o.pid)}"` : ''}${!o.click || fifty.includes(i) || o.sel != null ? ' disabled' : ''}><span class="let">${LET[i]}</span><span class="txt">${esc(t)}</span>${pct}</button>`;
+  }).join('') + '</div>';
+}
+function audHtml(a) {
+  if (!a) return '';
+  if (!a.sim && !a.n) return '<p class="note">Publiczność głosuje… (głosują gracze, którzy odpadli)</p>';
+  return `<div class="panel" style="padding:10px"><div class="kicker" style="text-align:center">Publiczność${a.sim ? '' : ` · ${a.n} ${a.n === 1 ? 'głos' : 'głosy'}`}</div>
+    <div class="aud">${a.pct.map((p, i) => `<div class="bar"><b>${p}%</b><i style="--h:${Math.max(2, p)}%"></i><span>${LET[i]}</span></div>`).join('')}</div></div>`;
+}
+function playView() {
+  const v = st.view, me = v.me, open = v.phase === 'reveal';
+  const info = `<div class="info">Runda <em>${v.round + 1}</em>/${v.rounds} · Pytanie <em>${v.qi + 1}</em>/12 · za <em>${zl(LADDER[v.qi])}</em></div>`;
+  // Odpadł wcześniej: publiczność + tabela.
+  if (me.out && !(open && me.outQ === v.qi)) {
+    const req = (v.audReq || [])[0];
+    const vote = req ? `<div class="panel vote rise"><div class="kicker">Pomóż graczowi ${esc(req.name)}</div><div style="font-weight:800">${esc(req.q.q)}</div>
+      ${answersHtml(req.q, { click: true, fifty: req.q.removed, act: 'vote', pid: req.pid })}</div>` : '';
+    return paint('out', `<div class="ph" id="r-head"></div>`, { 'r-head': `${header()}${info}
+      <div class="center" style="flex:0"><h2>Odpadasz z tej rundy</h2><p class="note">Teraz jesteś publicznością. ${v.phase === 'q' ? 'Gdy ktoś poprosi o pomoc, zagłosujesz tutaj.' : ''}</p></div>
+      ${vote}${listHtml(v.board, true)}` });
+  }
+  const q = v.q;
+  if (!q) return page(`<div class="ph">${header()}<div class="center"><p class="note">Czekaj…</p></div></div>`);
+  const lifes = `<div class="lifes">
+    <button class="life${me.life.f ? '' : ' used'}" data-act="life" data-k="f" ${me.life.f && canAnswer() ? '' : 'disabled'} aria-label="50:50">50:50</button>
+    <button class="life${me.life.a ? '' : ' used'}" data-act="life" data-k="a" ${me.life.a && canAnswer() ? '' : 'disabled'} aria-label="Pytanie do publiczności">${ICON.aud}</button>
+    <button class="life${me.life.s ? '' : ' used'}" data-act="life" data-k="s" ${me.life.s && canAnswer() ? '' : 'disabled'} aria-label="Zamiana pytania">${ICON.swap}</button></div>`;
+  let say = '';
+  if (open) {
+    if (me.correct) say = `<div class="center" style="flex:0;gap:6px"><div class="big rise">+${fmt(me.gain)}</div><p class="note">${me.rank === 1 ? 'Najszybciej! Bonus +20%' : me.rank === 2 ? '2. miejsce · bonus +10%' : me.rank === 3 ? '3. miejsce · bonus +5%' : 'Dobrze!'}</p></div>`;
+    else say = `<div class="center" style="flex:0;gap:6px"><div class="big bad rise">${me.ans == null ? 'Czas minął' : 'Źle!'}</div><p class="note">Odpadasz z tej rundy.</p></div>`;
+  } else if (me.ans != null) say = '<p class="note">Zaznaczone! Czekamy na pozostałych…</p>';
+  paint('play', `<div class="ph"><div id="r-head"></div><div id="r-timer"></div><div id="r-q"></div><div id="r-ans"></div><div id="r-aud"></div><div id="r-say"></div><div id="r-life"></div></div>`, {
+    'r-head': header() + info,
+    'r-timer': open ? '' : `<div class="trow"><div class="timer"><i></i></div><span class="tnum"></span></div>`,
+    'r-q': `<div class="qbox rise" data-k="${v.round}-${v.qi}-${me.swap}">${esc(q.q)}</div>`,
+    'r-ans': answersHtml(q, { click: canAnswer(), fifty: me.fifty, sel: me.ans, ok: open ? q.ok : null, pct: me.aud && (me.aud.sim || me.aud.n) ? me.aud.pct : null }),
+    'r-aud': open ? '' : audHtml(me.aud),
+    'r-say': say,
+    'r-life': open || me.ans != null ? '' : lifes,
+  });
+}
+function boardView() {
+  const v = st.view, end = v.phase === 'end';
+  const place = v.board.findIndex(p => p.id === st.id) + 1;
+  return page(`<div class="ph">${header()}<div class="center" style="flex:0;padding-top:10px">
+    <div class="kicker">${end ? 'Koniec meczu' : `Koniec rundy ${v.round + 1} z ${v.rounds}`}</div>
+    <h2>${end ? (place === 1 ? 'Wygrywasz mecz!' : `Zajmujesz ${place}. miejsce`) : `Jesteś ${place}. w tabeli`}</h2>
+    <div class="big">${fmt(v.me.total)} <span style="font-size:.4em">pkt</span></div>
+    <p class="note">${end ? 'Prowadzący może zaczynać rewanż.' : 'Następna runda za chwilę — patrz na ekran TV.'}</p></div>
+    ${listHtml(v.board)}</div>`);
+}
+function render() {
+  if (!st.code || !st.token || (!st.view && !st.conn)) return page(joinView());
+  if (st.status === 'noroom') return page(`<div class="ph">${header()}<div class="center"><h2>Pokój nie istnieje</h2><p class="note">Zeskanuj aktualny kod QR z ekranu TV.</p></div></div>`);
+  const v = st.view;
+  if (!v) return page(`<div class="ph">${header()}<div class="center"><p class="note">Łączenie z pokojem ${esc(st.code)}…</p>${st.err ? `<p class="err">${esc(st.err)}</p>` : ''}</div></div>`);
+  if (v.phase === 'lobby') return lobbyView();
+  if (v.phase === 'q' || v.phase === 'reveal') return playView();
+  return boardView();
+}
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act;
+  Snd.unlock();
+  if (a === 'join') return join();
+  if (a === 'home') { if (confirm('Wrócić do lobby PL3Y? Możesz wrócić do gry, skanując kod ponownie.')) location.href = '/'; return; }
+  if (a === 'ans') {
+    if (!canAnswer()) return;
+    const i = Number(el.dataset.i);
+    st.view.me.ans = i; Snd.play('lock'); try { navigator.vibrate && navigator.vibrate(20); } catch (e) {}
+    st.conn.send({ t: 'ans', i }); return render();
+  }
+  if (a === 'life') { if (!canAnswer()) return; Snd.play('life'); st.conn.send({ t: 'life', k: el.dataset.k }); el.disabled = true; return; }
+  if (a === 'vote') { Snd.play('tap'); st.conn.send({ t: 'vote', pid: el.dataset.pid, i: Number(el.dataset.i) }); el.closest('.vote').innerHTML = '<p class="note">Dzięki za głos!</p>'; return; }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'nick') join(); });
+addEventListener('hashchange', () => { const c = readHash(); if (c && c !== st.code) { if (st.conn) st.conn.stop(); location.reload(); } });
+
+st.code = readHash();
+if (st.code) { try { st.token = localStorage.getItem(tokKey(st.code)) || ''; } catch (e) {} if (st.token) connect(); }
+render();
+</script>
+</body>
+</html>

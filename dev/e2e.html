@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="pl">
+<head><meta charset="utf-8"><title>Milion · e2e</title>
+<style>
+body{margin:0;background:#111;color:#ddd;font:13px/1.4 monospace}
+#frames{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:4px;height:70vh}
+iframe{width:100%;height:100%;border:1px solid #333;background:#000}
+#log{height:28vh;overflow:auto;padding:6px;white-space:pre-wrap}
+</style></head>
+<body>
+<div id="frames"></div>
+<div id="log"></div>
+<script>
+// Test end-to-end w trybie lokalnym (?local=1, SharedWorker z prawdziwą klasą MlRoom). Klika prawdziwe przyciski.
+// Uruchom przez dev/serve.ps1: http://localhost:8091/milion/dev/e2e.html  (wynik: "E2E RESULT: PASS|FAIL" w konsoli)
+// ?only=solo|multi — tylko jedna część.
+const P = new URLSearchParams(location.search);
+const only = P.get('only');
+const $log = document.getElementById('log');
+function log(s) { $log.textContent += s + '\n'; $log.scrollTop = 1e9; console.log('[e2e] ' + s); }
+let fails = 0;
+function check(c, msg) { if (c) log('  ✓ ' + msg); else { fails++; log('  ✗ ' + msg); } }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function until(fn, ms = 15000, what = '') {
+  const t0 = Date.now();
+  for (;;) { let v; try { v = fn(); } catch (e) {} if (v) return v; if (Date.now() - t0 > ms) throw new Error('timeout: ' + what); await sleep(60); }
+}
+function frame(src) {
+  const f = document.createElement('iframe'); f.src = src; document.getElementById('frames').appendChild(f);
+  return new Promise(r => f.onload = () => r(f));
+}
+const D = f => f.contentDocument, W = f => f.contentWindow;
+const click = el => { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); el.click(); };
+// Poprawna odpowiedź po treści pytania (odpowiedzi są tasowane, więc szukamy po tekście).
+let QW = null;   // okno z bazą pytań (play.html jej nie ładuje)
+function correctText(win, qtext) {
+  const q = (win.ML_QUESTIONS || QW.ML_QUESTIONS).find(x => x.q === qtext.trim());
+  return q && q.a[q.ok];
+}
+function ansButtons(doc) { return [...doc.querySelectorAll('#r-ans .ans')]; }
+function pickBtn(doc, win, good) {
+  const qt = doc.querySelector('#r-q .qbox'); if (!qt) return null;
+  const ok = correctText(win, qt.textContent);
+  const bs = ansButtons(doc).filter(b => !b.disabled);
+  return good ? bs.find(b => b.querySelector('.txt').textContent === ok) : bs.find(b => b.querySelector('.txt').textContent !== ok);
+}
+
+async function soloTest() {
+  log('SOLO: 12 poprawnych odpowiedzi, koła, ranking');
+  const f = await frame('../index.html?local=1');
+  const d = D(f), w = W(f);
+  w.localStorage.setItem('milion_nick', 'TesterSolo');
+  click(await until(() => d.querySelector('[data-act="solo-setup"]'), 5000, 'menu'));
+  click(await until(() => d.querySelector('[data-act="time"][data-t="60"]'), 5000, 'czas'));
+  click(d.querySelector('[data-act="solo-start"]'));
+  for (let i = 0; i < 12; i++) {
+    await until(() => d.querySelector('#r-head .info em') && d.querySelector('#r-head .info em').textContent === String(i + 1) && pickBtn(d, w, true), 10000, 'pytanie ' + (i + 1));
+    if (i === 1) {
+      click(d.querySelector('[data-act="life"][data-k="f"]'));
+      const gone = ansButtons(d).filter(b => b.classList.contains('gone'));
+      check(gone.length === 2 && !gone.some(b => b === pickBtn(d, w, true)), '50:50 usuwa 2 złe');
+    }
+    if (i === 3) {
+      click(d.querySelector('[data-act="life"][data-k="a"]'));
+      check(!!w.document.querySelector('.ov .aud'), 'publiczność: wykres');
+      click(w.document.querySelector('.ov [data-act="ovno"]'));
+      check(ansButtons(d).every(b => b.querySelector('.pct')), 'publiczność: procenty przy odpowiedziach');
+    }
+    if (i === 5) {
+      const before = d.querySelector('#r-q .qbox').textContent;
+      click(d.querySelector('[data-act="life"][data-k="s"]'));
+      await until(() => d.querySelector('#r-q .qbox').textContent !== before, 3000, 'zamiana');
+      check(true, 'zamiana pytania');
+    }
+    if (i === 2) check(d.querySelector('[data-act="quit"]').textContent.includes('1 000'), 'rezygnacja przy 3. pytaniu = 1 000 zł');
+    click(pickBtn(d, w, true));
+  }
+  await until(() => d.querySelector('.result .amount'), 15000, 'koniec solo');
+  check(d.querySelector('.result .amount').textContent.replace(/\s/g, '') === '1000000zł', 'milion');
+  await until(() => /Miejsce w rankingu/i.test(d.body.innerText), 5000, 'zapis rankingu');
+  check(true, 'wynik zapisany w rankingu');
+  // druga gra: błąd na 3. pytaniu = 1 000 zł (próg)
+  click(d.querySelector('[data-act="solo-start"]'));
+  for (let i = 0; i < 3; i++) {
+    await until(() => d.querySelector('#r-head .info em') && d.querySelector('#r-head .info em').textContent === String(i + 1) && pickBtn(d, w, i < 2), 10000, 'pytanie ' + (i + 1));
+    click(pickBtn(d, w, i < 2));
+  }
+  await until(() => d.querySelector('.result .amount'), 15000, 'koniec solo 2');
+  check(d.querySelector('.result .amount').textContent.replace(/\s/g, '') === '1000zł', 'próg gwarantowany 1 000 zł');
+  click(d.querySelector('[data-act="rank"]'));
+  await until(() => d.querySelector('.rank table'), 5000, 'ranking');
+  check(d.querySelector('.rank table tbody tr').textContent.includes('TesterSolo'), 'ranking solo pokazuje gracza');
+  f.remove();
+}
+
+async function multiTest() {
+  log('MULTI: TV + 3 telefony, 3 rundy');
+  const h = await frame('../index.html?local=1');
+  const hd = D(h); QW = W(h);
+  W(h).localStorage.removeItem('milion_host_local');
+  click(await until(() => hd.querySelector('[data-act="multi"]'), 5000, 'menu'));
+  const code = await until(() => hd.querySelector('#r-code') && hd.querySelector('#r-code').textContent, 8000, 'kod pokoju');
+  check(/^[A-Z0-9]{5}$/.test(code) && hd.querySelector('#r-qr svg'), 'pokój i QR: ' + code);
+  click(hd.querySelector('[data-act="time"][data-t="15"]'));
+  const phones = [];
+  for (let i = 0; i < 3; i++) {
+    const f = await frame('../play.html?local=1&slot=' + i + '#' + code);
+    W(f).localStorage.removeItem('milion_pl_' + code + '_' + i);
+    const d = D(f);
+    (await until(() => d.getElementById('nick'), 5000, 'formularz')).value = 'Gracz' + i;
+    click(d.querySelector('[data-act="join"]'));
+    phones.push(f);
+  }
+  await until(() => hd.querySelectorAll('#r-players .chip').length === 3, 8000, '3 graczy w lobby');
+  check(true, '3 graczy w lobby');
+  click(hd.querySelector('[data-act="host-start"]'));
+  // Gracz0: zawsze dobrze. Gracz1: źle w 3. pytaniu. Gracz2: źle w 2. pytaniu (potem głosuje jako publiczność).
+  const plan = [() => true, qi => qi !== 2, qi => qi !== 1];
+  let leaks = 0;
+  for (let r = 0; r < 3; r++) {
+    for (let qi = 0; qi < 12; qi++) {
+      await until(() => { const e = hd.querySelectorAll('#r-head .info em'); return e.length && e[0].textContent === String(r + 1) && e[1].textContent === String(qi + 1) && hd.querySelector('#r-q .qbox'); }, 10000, `R${r + 1} P${qi + 1} na TV`);
+      if (hd.querySelector('#r-ans .good')) leaks++;
+      for (let p = 0; p < 3; p++) {
+        const d = D(phones[p]), w = W(phones[p]);
+        const alive = !d.body.innerText.includes('Odpadasz z tej rundy');
+        if (!alive) continue;
+        const btn = await until(() => pickBtn(d, w, plan[p](qi)), 6000, `telefon ${p} R${r + 1} P${qi + 1}`);
+        if (d.querySelector('#r-ans .good')) leaks++;
+        if (r === 0 && qi === 2 && p === 1) {
+          // Gracz1 prosi publiczność; Gracz2 (odpadł) głosuje.
+          click(d.querySelector('[data-act="life"][data-k="a"]'));
+          const vd = D(phones[2]);
+          const vb = await until(() => vd.querySelector('.vote [data-act="vote"]'), 5000, 'prośba o głos');
+          click(vb);
+          await until(() => /1 głos/i.test(d.body.innerText), 5000, 'wynik publiczności');
+          check(true, 'publiczność: głos wyeliminowanego dotarł');
+        }
+        click(pickBtn(d, w, plan[p](qi)) || btn);
+        if (P.has('dbg') && qi === 0 && r === 0) log('  DBG tel' + p + ': ' + w.eval('JSON.stringify([st.status, st.view.phase, st.view.me.ans, st.conn && st.conn.ws && st.conn.ws.readyState, canAnswer()])'));
+      }
+      await until(() => hd.querySelector('[data-act="host-next"]'), 20000, 'odsłonięcie');
+      if (P.has('dbg')) log(`  DBG R${r + 1}P${qi + 1}: TV: ${hd.querySelector('#app').innerText.replace(/\s+/g, ' ').slice(0, 400)} | tel0: ${D(phones[0]).body.innerText.replace(/\s+/g, ' ').slice(0, 300)}`);
+      const alive = [...hd.querySelectorAll('#r-players .chip')].filter(c => c.classList.contains('good')).length;
+      click(hd.querySelector('[data-act="host-next"]'));
+      if (alive === 0) break;
+    }
+    if (r < 2) {
+      await until(() => hd.querySelector('.board .table'), 15000, 'tabela po rundzie');
+      check(/Koniec rundy/i.test(hd.body.innerText), 'koniec rundy ' + (r + 1));
+      await sleep(300);
+      click(hd.querySelector('[data-act="host-next"]'));
+    }
+  }
+  await until(() => hd.querySelector('.podium'), 15000, 'podium');
+  check(leaks === 0, 'brak podświetlenia poprawnej przed odsłonięciem');
+  const rows = [...hd.querySelectorAll('.board tbody tr')].map(tr => [...tr.children].map(td => td.textContent.replace(/\s/g, '')));
+  check(rows[0][1] === 'Gracz0', 'wygrywa Gracz0');
+  const sum = r => Number(r[5]);
+  const exp0 = 3 * [500, 1000, 2000, 5000, 10000, 20000, 40000, 75000, 125000, 250000, 500000, 1000000].reduce((a, b) => a + b, 0);
+  check(sum(rows[0]) >= exp0 && sum(rows[0]) <= exp0 * 1.2, 'suma Gracza0 w zakresie: ' + rows[0][5]);
+  const g2 = rows.find(r => r[1] === 'Gracz2'), g1 = rows.find(r => r[1] === 'Gracz1');
+  check(sum(g1) >= 3 * 1500 && sum(g1) <= 3 * 1800, 'Gracz1: 2 pytania na rundę: ' + g1[5]);
+  check(sum(g2) >= 1500 && sum(g2) <= 1800, 'Gracz2: 1 pytanie na rundę: ' + g2[5]);
+  const pd = D(phones[0]);
+  await until(() => /Wygrywasz mecz/i.test(pd.body.innerText), 5000, 'telefon zwycięzcy');
+  check(true, 'telefon zwycięzcy pokazuje wygraną');
+  click(hd.querySelector('[data-act="rank"]'));
+  await until(() => hd.querySelector('.rank'), 5000, 'ranking');
+  click(await until(() => hd.querySelector('[data-act="tab"][data-t="multi"]'), 5000, 'zakładka'));
+  await until(() => hd.querySelectorAll('.rank table').length === 2, 5000, 'tabele multi');
+  check(hd.querySelector('.rank table tbody').textContent.includes('Gracz0'), 'ranking multi');
+  click(hd.querySelector('[data-act="back-host"]'));
+  click(await until(() => hd.querySelector('[data-act="host-reset"]'), 5000, 'rewanż'));
+  await until(() => hd.querySelector('#r-code'), 5000, 'lobby po rewanżu');
+  check(hd.querySelectorAll('#r-players .chip').length === 3, 'rewanż: gracze zostają w pokoju');
+}
+
+(async () => {
+  try {
+    if (only !== 'multi') await soloTest();
+    if (only !== 'solo') await multiTest();
+  } catch (e) {
+    fails++; log('BŁĄD: ' + (e && e.message || e));
+    document.querySelectorAll('iframe').forEach((f, i) => { try { log(`  ramka ${i} (${f.src.replace(/.*\//, '')}): ${D(f).body.innerText.replace(/\s+/g, ' ').slice(0, 300)}`); } catch (_) {} });
+  }
+  log(`E2E RESULT: ${fails ? 'FAIL (' + fails + ')' : 'PASS'}`);
+  document.title = 'E2E ' + (fails ? 'FAIL' : 'PASS');
+})();
+</script>
+</body>
+</html>

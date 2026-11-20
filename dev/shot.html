@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><title>Milion · podgląd</title>
+<style>html,body{margin:0;height:100%;background:#000}iframe{border:0;width:100%;height:100%}</style></head>
+<body>
+<script>
+// Podgląd do zrzutów ekranu: ?view=solo (gra solo, 5. pytanie z publicznością) | aud (okno publiczności).
+// Lokalnie: http://localhost:8091/milion/dev/shot.html?view=solo
+const view = new URLSearchParams(location.search).get('view') || 'solo';
+const f = document.createElement('iframe'); f.src = '../index.html?local=1'; document.body.appendChild(f);
+const W0 = new URLSearchParams(location.search).get('w'); if (W0) f.style.width = W0 + 'px';   // ?w=390: szerokość telefonu
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+f.onload = async () => {
+  const d = f.contentDocument, w = f.contentWindow;
+  w.localStorage.setItem('milion_nick', 'Ola');
+  if (view === 'lobby') { w.localStorage.removeItem('milion_host_local'); return d.querySelector('[data-act="multi"]').click(); }
+  d.querySelector('[data-act="solo-setup"]').click(); await sleep(50);
+  d.querySelector('[data-act="solo-start"]').click();
+  const good = () => { const q = w.ML_QUESTIONS.find(x => x.q === d.querySelector('#r-q .qbox').textContent); return [...d.querySelectorAll('#r-ans .ans')].find(b => b.querySelector('.txt').textContent === q.a[q.ok]); };
+  for (let i = 0; i < 4; i++) { await sleep(100); good().click(); await sleep(3500); }
+  d.querySelector('[data-act="life"][data-k="f"]').click(); await sleep(50);
+  d.querySelector('[data-act="life"][data-k="a"]').click();
+  if (view !== 'aud') { await sleep(50); d.querySelector('.ov [data-act="ovno"]').click(); }
+};
+</script>
+</body></html>

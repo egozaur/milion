@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<script src="/auth.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Milion</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="PL3Y">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#03061a">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Unbounded:wght@600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+/* ---------- menu ---------- */
+.home{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(22px,4vh,40px);padding:24px 16px 80px;text-align:center}
+.home .menu{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.home .menu .btn{min-width:200px}
+.home .resume{font-size:14px}
+.top-left{position:fixed;left:14px;top:14px;z-index:40}
+.nickrow{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+.field{background:rgba(3,6,26,.6);border:1.5px solid var(--line);color:var(--text);border-radius:999px;padding:.75em 1.2em;min-width:0;width:min(280px,100%);text-align:center;font-weight:700}
+.field:focus{outline:none;border-color:var(--gold)}
+.times{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.times button{padding:.6em 1.1em;border-radius:999px;border:1.5px solid var(--line);font-weight:800;background:rgba(255,255,255,.03);min-width:70px}
+.times button.on{background:var(--gold);color:#1d1300;border-color:var(--gold)}
+.setup{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px 80px}
+.setup .panel{width:min(520px,100%);padding:clamp(22px,4vw,36px);display:flex;flex-direction:column;gap:22px;text-align:center}
+.setup h2{margin:0;font:800 clamp(24px,4vw,34px)/1.1 var(--disp)}
+.rules{text-align:left;margin:0;padding-left:1.2em;color:var(--muted);font-size:14px;display:grid;gap:4px}
+
+/* ---------- gra ---------- */
+.game{flex:1;display:flex;flex-direction:column;padding:clamp(10px,2vh,22px) clamp(12px,2.5vw,32px) 70px;gap:clamp(10px,1.8vh,18px)}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bar .grow{flex:1}
+.bar .info{font:800 clamp(14px,1.6vw,20px)/1.2 var(--disp)}
+.bar .info em{font-style:normal;color:var(--gold2)}
+.stage{flex:1;display:grid;grid-template-columns:1fr minmax(220px,300px);gap:clamp(14px,2.5vw,32px);align-items:center}
+.center{display:flex;flex-direction:column;gap:clamp(12px,2.2vh,22px);min-width:0}
+.trow{display:flex;align-items:center;gap:14px}
+.trow .timer{flex:1}
+.trow.inf{justify-content:center;color:var(--muted);font-weight:700;letter-spacing:.2em;text-transform:uppercase;font-size:12px;min-height:40px}
+.side{padding:8px;align-self:center}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.foot .say{color:var(--muted);font-weight:700}
+.ladbtn{display:none}
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr}
+  .stage .side{display:none}
+  .ladbtn{display:inline-flex}
+}
+
+/* ---------- multi: lobby ---------- */
+.lobby{flex:1;display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:clamp(16px,3vw,40px);align-items:center;padding:clamp(14px,3vh,40px) clamp(14px,3vw,48px) 80px}
+.qrbox{padding:clamp(18px,3vw,30px);display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.qrbox .qr{background:#fff;padding:14px;border-radius:16px;width:min(300px,70vw)}
+.qrbox .qr svg{display:block;width:100%;height:auto}
+.qrbox .code{font:800 clamp(30px,4vw,46px)/1 var(--disp);letter-spacing:.18em;color:var(--gold2)}
+.qrbox .url{font-size:13px;color:var(--muted);word-break:break-all}
+.lobby .right{display:flex;flex-direction:column;gap:22px;align-items:center;text-align:center}
+.lobby .right h2{margin:0;font:800 clamp(22px,3vw,34px)/1.15 var(--disp)}
+.empty{color:var(--muted);font-style:italic}
+@media (max-width:800px){ .lobby{grid-template-columns:1fr} }
+
+/* ---------- multi: tablice ---------- */
+.board{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:24px 16px 80px;text-align:center}
+.board .panel{width:min(760px,100%);padding:clamp(14px,3vw,28px);overflow:auto}
+.board h2{margin:0;font:800 clamp(26px,4vw,48px)/1.1 var(--disp)}
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:clamp(8px,2vw,20px)}
+.podium .st{display:flex;flex-direction:column;align-items:center;gap:8px;width:clamp(90px,16vw,170px)}
+.podium .st b{font:800 clamp(14px,1.8vw,20px)/1.2 var(--font);overflow-wrap:anywhere}
+.podium .st span{font:600 clamp(12px,1.4vw,16px)/1 var(--disp);color:var(--gold2)}
+.podium .st i{display:grid;place-items:center;width:100%;border-radius:12px 12px 0 0;font:800 clamp(28px,4vw,48px)/1 var(--disp);font-style:normal;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));border:1.5px solid var(--line);border-bottom:0}
+.podium .p1 i{height:clamp(110px,20vh,180px);background:linear-gradient(180deg,var(--gold2),var(--gold3));color:#1d1300}
+.podium .p2 i{height:clamp(80px,14vh,130px)}
+.podium .p3 i{height:clamp(60px,10vh,95px)}
+
+/* ---------- koniec solo ---------- */
+.result{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px 16px 80px;text-align:center}
+.result .amount{font:800 clamp(48px,10vw,120px)/1 var(--disp);color:var(--gold2);text-shadow:0 8px 40px rgba(246,198,78,.4)}
+.result .why{font-size:clamp(16px,2vw,22px);color:var(--muted);max-width:620px}
+.result .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+
+/* ---------- ranking ---------- */
+.rank{flex:1;display:flex;flex-direction:column;align-items:center;gap:20px;padding:24px 16px 80px}
+.tabs{display:flex;gap:6px;background:rgba(255,255,255,.05);padding:5px;border-radius:999px;border:1.5px solid var(--line)}
+.tabs button{padding:.55em 1.4em;border-radius:999px;font-weight:800}
+.tabs button.on{background:var(--gold);color:#1d1300}
+.rank .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:18px;width:min(980px,100%)}
+.rank .panel{padding:16px;overflow:auto}
+.rank h3{margin:4px 10px 10px;font:800 16px/1.2 var(--disp)}
+.rank .date{color:var(--dim);font-weight:500;font-size:13px}
+
+.hostq .players{margin-top:4px}
+.ov h3{margin:0 0 6px;font:800 22px/1.2 var(--disp)}
+.ov .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.sliders{display:grid;gap:14px;margin-top:10px}
+.sliders label{display:grid;grid-template-columns:110px 1fr;align-items:center;gap:12px;text-align:left;font-weight:700}
+.sliders input{accent-color:var(--gold)}
+</style>
+</head>
+<body>
+<div id="fx" aria-hidden="true"><div class="spot l"></div><div class="spot c"></div><div class="spot r"></div><div class="floor"></div></div>
+<div id="app"></div>
+<div class="sound" id="sound"></div>
+<div id="ovl"></div>
+<script src="qrcode.js"></script>
+<script src="questions.js"></script>
+<script src="ml.js"></script>
+<script>
+'use strict';
+const { LADDER, SAFE, LET, esc, zl, fmt, Snd } = ML;
+const $app = document.getElementById('app');
+const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const HOST_KEY = ML.LOCAL ? 'milion_host_local' : 'milion_host';
+
+const ui = { screen: 'home', time: 30, mtime: 30, tab: 'solo', rank: null, rankErr: '' };
+try { const t = JSON.parse(localStorage.getItem('milion_time') || '{}'); if (ML.TIMES.includes(t.s)) ui.time = t.s; if (ML.TIMES.includes(t.m) && t.m) ui.mtime = t.m; } catch (e) {}
+const saveTimes = () => { try { localStorage.setItem('milion_time', JSON.stringify({ s: ui.time, m: ui.mtime })); } catch (e) {} };
+
+// ---------- rysowanie ----------
+let skel = null;
+function page(html) { skel = null; if ($app._h !== html) { $app.innerHTML = html; $app._h = html; } }
+function paint(key, skeleton, regions) {
+  if (skel !== key) { $app.innerHTML = skeleton; $app._h = null; skel = key; }
+  for (const id in regions) {
+    const el = document.getElementById(id);
+    if (el && el._h !== regions[id]) { el.innerHTML = regions[id]; el._h = regions[id]; }
+  }
+}
+
+const ICON = {
+  aud: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="5" width="4" height="16" rx="1"/><rect x="17" y="9" width="4" height="12" rx="1"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h13l-3.5-3.5M20 15H7l3.5 3.5"/></svg>',
+  music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 17.5V6l11-2.5v11.5" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="6.5" cy="17.5" r="2.8"/><circle cx="17.5" cy="15" r="2.8"/></svg>',
+  sfx: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>',
+};
+
+function answersHtml(q, o = {}) {
+  const fifty = o.fifty || [];
+  return '<div class="answers">' + q.a.map((t, i) => {
+    let c = 'ans';
+    if (fifty.includes(i)) c += ' gone';
+    if (o.ok == null) { if (o.sel === i) c += ' sel'; }
+    else if (i === o.ok) c += ' good';
+    else if (o.sel === i) c += ' bad';
+    else c += ' dim';
+    const extra = o.pct ? `<span class="pct">${o.pct[i]}%</span>` : o.counts ? `<span class="pct">${o.counts[i] ? o.counts[i] + '×' : ''}</span>` : '';
+    const inner = `<span class="let">${LET[i]}</span><span class="txt">${esc(t)}</span>${extra}`;
+    return o.click ? `<button class="${c}" data-act="ans" data-i="${i}"${fifty.includes(i) || o.sel != null ? ' disabled' : ''}>${inner}</button>` : `<div class="${c}">${inner}</div>`;
+  }).join('') + '</div>';
+}
+function ladderHtml(qi, done) {
+  return LADDER.map((v, i) => `<li class="${i === qi ? 'cur' : ''}${i < qi || (done && i === qi) ? ' done' : ''}${SAFE.includes(i) ? ' safe' : ''}${i === 11 ? ' top' : ''}"><b>${i + 1}</b><span>${zl(v)}</span></li>`).join('');
+}
+function timesHtml(cur, noInf) {
+  return '<div class="times">' + ML.TIMES.filter(t => !(noInf && !t)).map(t => `<button data-act="time" data-t="${t}" class="${t === cur ? 'on' : ''}">${t ? t + ' s' : '∞'}</button>`).join('') + '</div>';
+}
+const timerHtml = (limited) => limited ? '<div class="trow"><div class="timer"><i></i></div><span class="tnum"></span></div>' : '<div class="trow inf">bez limitu czasu</div>';
+
+// ---------- licznik czasu ----------
+const T = { deadline: 0, total: 0, onEnd: null, last: -1 };
+function setTimer(deadline, total, onEnd) { T.deadline = deadline; T.total = total; T.onEnd = onEnd || null; }
+function stopTimer() { T.deadline = 0; T.onEnd = null; }
+function loop() {
+  requestAnimationFrame(loop);
+  if (!T.deadline) return;
+  const left = Math.max(0, T.deadline - performance.now());
+  const low = left < 5500;
+  const bar = document.querySelector('#r-timer .timer i'), num = document.querySelector('#r-timer .tnum');
+  if (bar) { bar.style.transform = `scaleX(${T.total ? left / T.total : 0})`; bar.parentNode.classList.toggle('low', low); }
+  const s = Math.ceil(left / 1000);
+  if (num) { num.textContent = s; num.classList.toggle('low', low); }
+  if (s !== T.last) { if (low && s > 0 && T.last > s) Snd.play('tick'); T.last = s; }
+  if (left <= 0 && T.onEnd) { const f = T.onEnd; stopTimer(); f(); }
+}
+requestAnimationFrame(loop);
+
+// ---------- okna ----------
+const $ovl = document.getElementById('ovl');
+let ovlDone = null;
+function overlay(html, onClose) { $ovl.innerHTML = `<div class="ov" data-act="ovbg"><div class="panel rise" role="dialog" aria-modal="true">${html}</div></div>`; ovlDone = onClose || null; }
+function closeOverlay() { $ovl.innerHTML = ''; const f = ovlDone; ovlDone = null; f && f(); }
+function ask(text, yes = 'Tak', no = 'Anuluj') {
+  return new Promise(res => {
+    overlay(`<h3>${esc(text)}</h3><div class="row"><button class="btn" data-act="ovyes">${esc(yes)}</button><button class="btn ghost" data-act="ovno">${esc(no)}</button></div>`, () => res(false));
+    ovlDone = () => res(false);
+    $ovl.querySelector('[data-act="ovyes"]').onclick = e => { e.stopPropagation(); ovlDone = null; $ovl.innerHTML = ''; res(true); };
+  });
+}
+function audOverlay(pct, note) {
+  overlay(`<div class="kicker">Pytanie do publiczności</div><h3 style="margin-top:8px">${esc(note || 'Publiczność zagłosowała')}</h3>
+    <div class="aud">${pct.map((p, i) => `<div class="bar"><b>${p}%</b><i style="--h:0%" data-h="${p}"></i><span>${LET[i]}</span></div>`).join('')}</div>
+    <div class="row"><button class="btn" data-act="ovno">Dzięki!</button></div>`);
+  requestAnimationFrame(() => requestAnimationFrame(() => $ovl.querySelectorAll('.aud i').forEach(i => i.style.setProperty('--h', Math.max(2, i.dataset.h) + '%'))));
+}
+function confetti() {
+  if (calm()) return;
+  const c = document.createElement('div'); c.className = 'confetti';
+  const col = ['#f6c64e', '#ffe7a1', '#ffffff', '#5b7bff', '#22c873'];
+  for (let i = 0; i < 120; i++) {
+    const e = document.createElement('i');
+    e.style.left = Math.random() * 100 + 'vw'; e.style.background = col[i % col.length];
+    e.style.setProperty('--dx', (Math.random() * 30 - 15) + 'vw'); e.style.setProperty('--rot', (Math.random() * 1440 - 720) + 'deg');
+    e.style.animationDuration = 2.5 + Math.random() * 3 + 's'; e.style.animationDelay = Math.random() * 1.5 + 's';
+    c.appendChild(e);
+  }
+  document.body.appendChild(c); setTimeout(() => c.remove(), 8000);
+}
+
+// ---------- dźwięk ----------
+function soundBar() {
+  document.getElementById('sound').innerHTML =
+    `<button data-act="snd-m" class="${Snd.st.m ? 'on' : ''}" aria-label="Muzyka" title="Muzyka">${ICON.music}</button>` +
+    `<button data-act="snd-s" class="${Snd.st.s ? 'on' : ''}" aria-label="Efekty" title="Efekty">${ICON.sfx}</button>` +
+    `<button data-act="snd-cfg" aria-label="Głośność" title="Głośność">${ICON.gear}</button>`;
+}
+function soundCfg() {
+  overlay(`<h3>Głośność</h3><div class="sliders">
+    <label>Muzyka <input type="range" min="0" max="1" step="0.05" value="${Snd.st.mv}" data-vol="m"></label>
+    <label>Efekty <input type="range" min="0" max="1" step="0.05" value="${Snd.st.sv}" data-vol="s"></label></div>
+    <div class="row"><button class="btn" data-act="ovno">Gotowe</button></div>`);
+}
+document.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.vol; if (k) Snd.setVol(k, Number(e.target.value)); });
+document.addEventListener('pointerdown', () => Snd.unlock(), { capture: true });
+function music(on) { Snd.music(on); }
+
+// ---------- menu ----------
+function savedHost() { try { return JSON.parse(localStorage.getItem(HOST_KEY) || 'null'); } catch (e) { return null; } }
+function homeView() {
+  const h = savedHost();
+  return `<a class="btn ghost sm top-left" href="/" data-act="lobby">⌂ PL3Y</a>
+  <div class="home">
+    <h1 class="logo rise">MILI<span class="mark">1</span>N<small>12 PYTAŃ · 1 000 000 ZŁ</small></h1>
+    <div class="menu rise">
+      <button class="btn big" data-act="solo-setup">Gra solo</button>
+      <button class="btn big ghost" data-act="multi">Multi · telefony</button>
+    </div>
+    <button class="btn ghost" data-act="rank">🏆 Ranking</button>
+    ${h ? `<button class="link resume" data-act="resume">Wróć do pokoju ${esc(h.code)}</button>` : ''}
+  </div>`;
+}
+function soloSetupView() {
+  return `<div class="setup"><div class="panel rise">
+    <div class="kicker">Gra solo</div><h2>12 pytań do miliona</h2>
+    <div><div class="kicker" style="margin-bottom:10px">Twój nick (do rankingu)</div>
+      <div class="nickrow"><input class="field" id="nick" maxlength="16" placeholder="Nick" value="${esc(ML.nick.get())}" autocomplete="off"></div></div>
+    <div><div class="kicker" style="margin-bottom:10px">Czas na pytanie</div>${timesHtml(ui.time)}</div>
+    <ul class="rules"><li>Progi gwarantowane: ${zl(1000)} i ${zl(40000)}.</li><li>Kliknięcie odpowiedzi od razu ją zatwierdza.</li>
+      <li>Koła: 50:50, publiczność i zamiana pytania — każde raz.</li><li>W każdej chwili możesz zrezygnować i zabrać wygraną.</li></ul>
+    <div class="row" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn big" data-act="solo-start">Start</button><button class="btn ghost" data-act="home">Wróć</button></div>
+  </div></div>`;
+}
+
+// ---------- SOLO ----------
+let solo = null;
+const curQ = () => { const l = solo.set[solo.qi]; return solo.swap ? l.s : l.m; };
+function soloStart() {
+  const n = document.getElementById('nick'); if (n) ML.nick.set(n.value);
+  solo = { set: ML.pickSet(), qi: 0, life: { f: true, a: true, s: true }, swap: false, fifty: [], aud: null, sel: null, phase: 'q', time: ui.time, result: null, saved: null };
+  ui.screen = 'solo';
+  document.body.classList.remove('win');
+  Snd.play('start'); music(true);
+  soloQ();
+}
+function soloQ() {
+  solo.phase = 'q'; solo.swap = false; solo.fifty = []; solo.aud = null; solo.sel = null;
+  Snd.heat(solo.qi);
+  document.body.classList.toggle('hot', solo.qi >= 7);
+  if (solo.time) setTimer(performance.now() + solo.time * 1000, solo.time * 1000, soloTimeUp); else stopTimer();
+  render();
+}
+function soloPick(i) {
+  if (!solo || solo.phase !== 'q' || solo.fifty.includes(i)) return;
+  solo.sel = i; solo.phase = 'lock'; stopTimer();
+  Snd.play('lock'); render();
+  setTimeout(soloReveal, 1600);
+}
+function soloReveal() {
+  const q = curQ();
+  solo.phase = 'reveal'; render();
+  if (solo.sel === q.ok) {
+    Snd.play('good');
+    setTimeout(() => { if (solo.qi === 11) soloFinish('win'); else { solo.qi++; soloQ(); } }, 1700);
+  } else { Snd.play('bad'); setTimeout(() => soloFinish('wrong'), 2800); }
+}
+function soloTimeUp() {
+  if (!solo || solo.phase !== 'q') return;
+  solo.phase = 'reveal'; solo.sel = null; Snd.play('bad'); render();
+  setTimeout(() => soloFinish('time'), 2800);
+}
+async function soloQuit() {
+  if (!solo || solo.phase !== 'q') return;
+  const take = solo.qi ? LADDER[solo.qi - 1] : 0;
+  if (await ask(`Rezygnujesz i zabierasz ${zl(take)}?`, 'Biorę kasę', 'Gram dalej')) soloFinish('quit');
+}
+function soloLife(k) {
+  if (!solo || solo.phase !== 'q' || !solo.life[k]) return;
+  const q = curQ();
+  solo.life[k] = false; Snd.play('life');
+  if (k === 'f') {
+    const wrong = [0, 1, 2, 3].filter(i => i !== q.ok);
+    wrong.splice(Math.floor(Math.random() * 3), 1);
+    solo.fifty = wrong;
+  } else if (k === 'a') {
+    solo.aud = ML.audienceSim(q.ok, solo.qi, solo.fifty);
+    audOverlay(solo.aud, 'Tak głosowała publiczność w studiu');
+  } else if (k === 's') {
+    solo.swap = true; solo.fifty = []; solo.aud = null;
+    if (solo.time) setTimer(performance.now() + solo.time * 1000, solo.time * 1000, soloTimeUp);
+  }
+  render();
+}
+function soloFinish(reason) {
+  stopTimer();
+  const passed = reason === 'win' ? 12 : solo.qi;
+  const amount = reason === 'win' ? LADDER[11] : reason === 'quit' ? (solo.qi ? LADDER[solo.qi - 1] : 0) : ML.guaranteed(solo.qi);
+  solo.result = { reason, amount, qs: passed };
+  ui.screen = 'soloEnd';
+  document.body.classList.remove('hot');
+  if (reason === 'win') { document.body.classList.add('win'); Snd.play('win'); confetti(); }
+  Snd.hush(true);
+  if (amount > 0 && ML.nick.get()) soloSave();
+  render();
+}
+async function soloSave() {
+  const nick = ML.nick.get();
+  if (!nick || !solo || !solo.result || solo.saved) return;
+  solo.saved = 'wait'; render();
+  try { const r = await ML.postSolo({ nick, amount: solo.result.amount, qs: solo.result.qs }); solo.saved = { rank: r.rank }; }
+  catch (e) { solo.saved = 'err'; }
+  render();
+}
+function soloView() {
+  const q = curQ(), s = solo;
+  const show = s.phase === 'reveal' ? q.ok : null;
+  const head = `<button class="btn ghost sm" data-act="menu">Menu</button><span class="info">Pytanie <em>${s.qi + 1}</em>/12 · za <em>${zl(LADDER[s.qi])}</em></span>
+    <span class="grow"></span><button class="btn ghost sm ladbtn" data-act="ladder">Drabinka</button><span class="muted">${esc(ML.nick.get())}</span>`;
+  const lifes = `<div class="lifes">
+    <button class="life${s.life.f ? '' : ' used'}" data-act="life" data-k="f" ${s.life.f && s.phase === 'q' ? '' : 'disabled'} title="50:50" aria-label="50:50">50:50</button>
+    <button class="life${s.life.a ? '' : ' used'}" data-act="life" data-k="a" ${s.life.a && s.phase === 'q' ? '' : 'disabled'} title="Pytanie do publiczności" aria-label="Pytanie do publiczności">${ICON.aud}</button>
+    <button class="life${s.life.s ? '' : ' used'}" data-act="life" data-k="s" ${s.life.s && s.phase === 'q' ? '' : 'disabled'} title="Zamiana pytania" aria-label="Zamiana pytania">${ICON.swap}</button></div>`;
+  let say = '';
+  if (s.phase === 'lock') say = 'Zaznaczono… sprawdzamy!';
+  else if (s.phase === 'reveal') say = s.sel === q.ok ? (s.qi === 11 ? 'MILION!' : 'Dobrze!') : s.sel == null ? 'Koniec czasu!' : 'Niestety, to nie ta odpowiedź.';
+  const foot = `${lifes}<span class="say">${say}</span><button class="btn ghost" data-act="quit" ${s.phase === 'q' ? '' : 'disabled'}>Rezygnuję · ${zl(s.qi ? LADDER[s.qi - 1] : 0)}</button>`;
+  paint('solo', `<div class="game"><header class="bar" id="r-head"></header><main class="stage"><div class="center">
+      <div id="r-timer"></div><div id="r-q"></div><div id="r-ans"></div><div class="foot" id="r-foot"></div></div>
+      <aside class="side panel"><ol class="ladder" id="r-ladder"></ol></aside></main></div>`, {
+    'r-head': head,
+    'r-timer': timerHtml(!!s.time) + (s.time ? `<!--${s.qi}-${s.swap}-->` : ''),
+    'r-q': `<div class="qbox rise" data-k="${s.qi}${s.swap ? 's' : ''}">${esc(q.q)}</div>`,
+    'r-ans': answersHtml(q, { click: true, fifty: s.fifty, sel: s.sel, ok: show, pct: s.aud }),
+    'r-foot': foot,
+    'r-ladder': ladderHtml(s.qi, s.phase === 'reveal' && s.sel === q.ok),
+  });
+}
+function soloEndView() {
+  const r = solo.result;
+  const why = { win: 'Odpowiedziałeś na wszystkie 12 pytań. Brawo!', quit: `Zrezygnowałeś po ${r.qs} ${r.qs === 1 ? 'pytaniu' : 'pytaniach'} i zabierasz wygraną.`,
+    wrong: 'Błędna odpowiedź. Zostaje to, co zabezpieczył próg gwarantowany.', time: 'Skończył się czas. Zostaje to, co zabezpieczył próg gwarantowany.' }[r.reason];
+  let save = '';
+  if (r.amount > 0) {
+    if (!ML.nick.get()) save = `<div class="nickrow"><input class="field" id="nick" maxlength="16" placeholder="Twój nick"><button class="btn" data-act="solo-save">Zapisz w rankingu</button></div>`;
+    else if (solo.saved === 'wait') save = '<span class="muted">Zapisuję w rankingu…</span>';
+    else if (solo.saved === 'err') save = '<span class="muted">Nie udało się zapisać wyniku (brak połączenia).</span> <button class="link" data-act="solo-retry">Spróbuj jeszcze raz</button>';
+    else if (solo.saved && solo.saved.rank) save = `<span class="muted">Miejsce w rankingu: <b style="color:var(--gold2)">${solo.saved.rank}</b></span>`;
+    else if (solo.saved) save = '<span class="muted">Wynik zapisany (poza top 50).</span>';
+  }
+  return `<div class="result"><div class="kicker">${r.reason === 'win' ? 'Jest milion!' : 'Koniec gry'}</div>
+    <div class="amount rise">${zl(r.amount)}</div><div class="why">${esc(why)}</div>${save}
+    <div class="row"><button class="btn big" data-act="solo-start">Zagraj jeszcze raz</button><button class="btn ghost" data-act="rank">Ranking</button><button class="btn ghost" data-act="home">Menu</button></div></div>`;
+}
+
+// ---------- MULTI (prowadzący) ----------
+let host = null;   // { code, hostToken, conn, view, status, err }
+let autoNext = null;
+async function multiCreate() {
+  ui.screen = 'host';
+  host = { code: null, view: null, status: 'connecting', err: '' };
+  render();
+  try {
+    const r = await ML.createRoom();
+    try { localStorage.setItem(HOST_KEY, JSON.stringify({ code: r.code, hostToken: r.hostToken })); } catch (e) {}
+    hostConnect(r.code, r.hostToken);
+  } catch (e) { host.err = 'Nie udało się założyć pokoju. Sprawdź połączenie z internetem.'; host.status = 'bad'; render(); }
+}
+function hostConnect(code, hostToken) {
+  if (host && host.conn) host.conn.stop();
+  host = { code, hostToken, view: null, status: 'connecting', err: '' };
+  ui.screen = 'host'; music(true); Snd.hush(false);
+  host.conn = new ML.Conn({
+    code, hello: () => ({ t: 'hello', host: hostToken }),
+    onStatus: s => {
+      host.status = s;
+      if (s === 'noroom') { try { localStorage.removeItem(HOST_KEY); } catch (e) {} host.err = 'Pokój wygasł. Załóż nowy.'; }
+      render();
+    },
+    onMessage: m => {
+      if (m.t === 'error') { host.err = m.err || 'Błąd'; if (m.code === 'badhost') { try { localStorage.removeItem(HOST_KEY); } catch (e) {} } render(); return; }
+      if (m.t === 'state') hostState(m.view);
+    },
+  });
+  render();
+}
+function hostState(v) {
+  const old = host.view; host.view = v; host.err = '';
+  const changed = !old || old.phase !== v.phase || old.qi !== v.qi || old.round !== v.round;
+  if (v.phase === 'q') {
+    setTimer(performance.now() + v.left, v.time * 1000, null);
+    if (changed) { Snd.heat(v.qi); document.body.classList.toggle('hot', v.qi >= 7); }
+    if (old && old.phase === 'q') { const a = old.players.filter(p => p.answered).length, b = v.players.filter(p => p.answered).length; if (b > a) Snd.play('tap'); }
+  } else stopTimer();
+  if (v.phase === 'lobby' && old && v.players.length > old.players.length) Snd.play('join');
+  if (changed) {
+    clearTimeout(autoNext);
+    if (v.phase === 'q' && v.qi === 0) Snd.play('start');
+    if (v.phase === 'reveal') {
+      const any = v.players.some(p => p.correct);
+      Snd.play(any ? 'good' : 'bad');
+      const r = v.round, q = v.qi;
+      autoNext = setTimeout(() => { if (host && host.view && host.view.phase === 'reveal' && host.view.round === r && host.view.qi === q) hostNext(); }, 7000);
+    }
+    if (v.phase === 'end') { document.body.classList.remove('hot'); document.body.classList.add('win'); Snd.play('win'); confetti(); }
+    else document.body.classList.remove('win');
+    if (v.phase === 'roundEnd' || v.phase === 'lobby') document.body.classList.remove('hot');
+  }
+  render();
+}
+function hostNext() { clearTimeout(autoNext); host && host.conn && host.conn.send({ t: 'next' }); }
+function hostStart() {
+  if (!host || !host.view || !host.view.players.length) return;
+  let pool; try { pool = ML.pickPool(); } catch (e) { host.err = e.message; return render(); }
+  host.conn.send({ t: 'start', time: ui.mtime, pool });
+}
+async function hostLeave() {
+  if (host && host.view && host.view.phase !== 'lobby' && host.view.phase !== 'end' && !(await ask('Wyjść z meczu? Gracze zostaną w pokoju i możesz wrócić.', 'Wyjdź', 'Zostań'))) return;
+  if (host && host.conn) host.conn.stop();
+  host = null; clearTimeout(autoNext); stopTimer();
+  document.body.classList.remove('hot', 'win');
+  ui.screen = 'home'; music(false); render();
+}
+async function hostEnd() {
+  if (!(await ask('Zamknąć pokój? Gracze będą musieli zeskanować nowy kod.', 'Zamknij pokój', 'Anuluj'))) return;
+  try { localStorage.removeItem(HOST_KEY); } catch (e) {}
+  if (host && host.conn) host.conn.stop();
+  host = null; ui.screen = 'home'; music(false); document.body.classList.remove('hot', 'win'); render();
+}
+
+const STATUS = { online: 'połączono', connecting: 'łączenie…', reconnecting: 'ponowne łączenie…', noroom: 'pokój wygasł', revoked: 'rozłączono', closed: 'rozłączono', bad: 'brak połączenia' };
+const statusHtml = s => `<span class="status ${s === 'online' ? 'online' : s === 'connecting' || s === 'reconnecting' ? '' : 'bad'}">${STATUS[s] || s}</span>`;
+const medal = n => `<span class="medal${n <= 3 ? ' m' + n : ''}">${n}</span>`;
+const sorted = ps => [...ps].sort((a, b) => b.total - a.total);
+
+function hostView() {
+  const h = host, v = h.view;
+  if (!v) {
+    return page(`<div class="board"><h2>${h.err ? 'Ups' : 'Zakładam pokój…'}</h2>${h.err ? `<p class="muted">${esc(h.err)}</p><div class="row" style="display:flex;gap:10px"><button class="btn" data-act="multi">Spróbuj ponownie</button><button class="btn ghost" data-act="home-x">Menu</button></div>` : statusHtml(h.status)}</div>`);
+  }
+  if (v.phase === 'lobby') return lobbyView();
+  if (v.phase === 'q' || v.phase === 'reveal') return hostQView();
+  if (v.phase === 'roundEnd' || v.phase === 'end') return boardView();
+}
+function lobbyView() {
+  const v = host.view, url = ML.joinUrl(v.code);
+  paint('lobby', `<a class="btn ghost sm top-left" data-act="home-x" href="#">← Menu</a><div class="lobby">
+    <div class="qrbox panel rise"><div class="kicker">Zeskanuj telefonem</div><div class="qr" id="r-qr"></div><div class="code" id="r-code"></div><div class="url" id="r-url"></div></div>
+    <div class="right"><div class="kicker">Multi · do ${12} graczy</div><h2>Dołączcie do gry!</h2>
+      <div class="chips" id="r-players"></div>
+      <div><div class="kicker" style="margin-bottom:10px">Czas na pytanie</div><div id="r-times"></div></div>
+      <div id="r-start"></div><div id="r-status"></div>
+      <p class="muted" style="max-width:520px;margin:0;font-size:14px">3 rundy po 12 pytań. Błąd albo brak odpowiedzi = koniec rundy dla gracza. Najszybsza poprawna odpowiedź: +20%, druga +10%, trzecia +5%. Wygrywa suma punktów.</p>
+    </div></div>`, {
+    'r-qr': ML.qrSvg(url), 'r-code': esc(v.code), 'r-url': esc(url.replace(/^https?:\/\//, '')),
+    'r-players': v.players.length ? v.players.map(p => `<span class="chip${p.conn ? '' : ' off'}">${esc(p.name)}<button class="x" data-act="kick" data-id="${esc(p.id)}" aria-label="Usuń ${esc(p.name)}">✕</button></span>`).join('') : '<span class="empty">Czekamy na graczy…</span>',
+    'r-times': timesHtml(ui.mtime, true),
+    'r-start': `<button class="btn big" data-act="host-start" ${v.players.length ? '' : 'disabled'}>Start meczu</button>`,
+    'r-status': statusHtml(host.status) + (host.err ? ` <span class="muted">· ${esc(host.err)}</span>` : ''),
+  });
+}
+function hostQView() {
+  const v = host.view, open = v.phase === 'reveal';
+  const head = `<button class="btn ghost sm" data-act="host-leave">Menu</button><span class="info">Runda <em>${v.round + 1}</em>/${v.rounds} · Pytanie <em>${v.qi + 1}</em>/12 · za <em>${zl(LADDER[v.qi])}</em></span>
+    <span class="grow"></span>${statusHtml(host.status)}<span class="muted">Kod: <b style="color:var(--gold2)">${esc(v.code)}</b></span>`;
+  const alive = v.players.filter(p => !p.out || (open && p.outQ === v.qi));
+  const answered = v.players.filter(p => p.answered && !p.out).length;
+  const chips = sorted(v.players).map(p => {
+    let c = 'chip', extra = '';
+    if (open && p.correct) { c += ' good'; extra = `<span class="gain">+${fmt(p.gain)}${p.rank <= 3 ? ' · ' + p.rank + '.' : ''}</span>`; }
+    else if (open && p.correct === false) { c += ' bad'; extra = '<span class="gain" style="color:var(--bad)">odpada</span>'; }
+    else if (p.out) c += ' out';
+    else if (p.answered) c += ' ok';
+    if (!p.conn) c += ' off';
+    return `<span class="${c}">${esc(p.name)}${extra}<span class="pts">${fmt(p.total)}</span></span>`;
+  }).join('');
+  const say = open ? `<span class="say">${v.players.filter(p => p.correct).length} z ${alive.length} poprawnie</span><button class="btn" data-act="host-next">Dalej →</button>`
+    : `<span class="say">Odpowiedzi: ${answered}/${v.players.filter(p => !p.out).length}</span><span></span>`;
+  paint('hostq', `<div class="game hostq"><header class="bar" id="r-head"></header><main class="stage"><div class="center">
+      <div id="r-timer"></div><div id="r-q"></div><div id="r-ans"></div><div class="foot" id="r-foot"></div><div class="chips players" id="r-players"></div></div>
+      <aside class="side panel"><ol class="ladder" id="r-ladder"></ol></aside></main></div>`, {
+    'r-head': head,
+    'r-timer': open ? '<div class="trow inf">odsłonięcie</div>' : timerHtml(true),
+    'r-q': v.q ? `<div class="qbox rise" data-k="${v.round}-${v.qi}">${esc(v.q.q)}</div>` : '',
+    'r-ans': v.q ? answersHtml(v.q, { ok: open ? v.q.ok : null, counts: open ? v.counts : null }) : '',
+    'r-foot': say, 'r-players': chips, 'r-ladder': ladderHtml(v.qi, open),
+  });
+}
+function boardView() {
+  const v = host.view, end = v.phase === 'end';
+  const ps = sorted(v.players);
+  const rows = ps.map((p, i) => `<tr><td>${medal(i + 1)}</td><td>${esc(p.name)}</td>${p.rp.map((x, r) => `<td class="n" style="${r > v.round ? 'opacity:.3' : ''}">${fmt(x)}</td>`).join('')}<td class="n">${fmt(p.total)}</td></tr>`).join('');
+  const table = `<div class="panel rise"><table class="table"><thead><tr><th></th><th>Gracz</th><th class="n">R1</th><th class="n">R2</th><th class="n">R3</th><th class="n">Suma</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const pod = end ? `<div class="podium">${[1, 0, 2].map(i => ps[i] ? `<div class="st p${i + 1}"><b>${esc(ps[i].name)}</b><span>${fmt(ps[i].total)} pkt</span><i>${i + 1}</i></div>` : '').join('')}</div>` : '';
+  const btns = end
+    ? `<button class="btn big" data-act="host-reset">Rewanż</button><button class="btn ghost" data-act="rank">Ranking</button><button class="btn ghost" data-act="host-close">Zamknij pokój</button>`
+    : `<button class="btn big" data-act="host-next">Runda ${v.round + 2} →</button><button class="btn ghost" data-act="host-leave">Menu</button>`;
+  page(`<div class="board"><div class="kicker">${end ? 'Koniec meczu' : `Koniec rundy ${v.round + 1} z ${v.rounds}`}</div>
+    <h2>${end ? (ps[0] ? `Wygrywa ${esc(ps[0].name)}!` : 'Koniec') : 'Tabela po rundzie'}</h2>${pod}${table}
+    <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">${btns}</div>${statusHtml(host.status)}</div>`);
+}
+
+// ---------- RANKING ----------
+async function loadRank() {
+  ui.rank = null; ui.rankErr = ''; render();
+  try { ui.rank = await ML.scores(); } catch (e) { ui.rankErr = 'Nie udało się pobrać rankingu.'; }
+  render();
+}
+const day = ts => new Date(ts).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' });
+function rankView() {
+  const r = ui.rank, me = ML.nick.get().toLowerCase();
+  let body;
+  if (ui.rankErr) body = `<p class="muted">${esc(ui.rankErr)}</p><button class="btn ghost" data-act="rank">Spróbuj ponownie</button>`;
+  else if (!r) body = '<p class="muted">Ładowanie…</p>';
+  else if (ui.tab === 'solo') {
+    body = `<div class="grid" style="grid-template-columns:1fr;width:min(720px,100%)"><div class="panel rise"><h3>Najwyższe wygrane</h3>${r.solo.length ? `<table class="table"><thead><tr><th></th><th>Gracz</th><th class="n">Wygrana</th><th class="n">Pytania</th><th class="n">Data</th></tr></thead><tbody>${
+      r.solo.map((e, i) => `<tr class="${e.nick.toLowerCase() === me ? 'me' : ''}"><td>${medal(i + 1)}</td><td>${esc(e.nick)}</td><td class="n">${zl(e.amount)}</td><td class="n">${e.qs}/12</td><td class="n date">${day(e.ts)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:10px">Jeszcze nikt nic nie wygrał. Bądź pierwszy!</p>'}</div></div>`;
+  } else {
+    body = `<div class="grid"><div class="panel rise"><h3>Najlepsze mecze</h3>${r.multi.length ? `<table class="table"><thead><tr><th></th><th>Gracz</th><th class="n">Punkty</th><th class="n">Data</th></tr></thead><tbody>${
+      r.multi.map((e, i) => `<tr class="${e.nick.toLowerCase() === me ? 'me' : ''}"><td>${medal(i + 1)}</td><td>${esc(e.nick)}</td><td class="n">${fmt(e.pts)}</td><td class="n date">${day(e.ts)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:10px">Brak rozegranych meczów.</p>'}</div>
+      <div class="panel rise"><h3>Wygrane mecze</h3>${r.wins.length ? `<table class="table"><thead><tr><th></th><th>Gracz</th><th class="n">Wygrane</th></tr></thead><tbody>${
+      r.wins.map((e, i) => `<tr class="${e.nick.toLowerCase() === me ? 'me' : ''}"><td>${medal(i + 1)}</td><td>${esc(e.nick)}</td><td class="n">${e.n}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:10px">Brak zwycięzców.</p>'}</div></div>`;
+  }
+  page(`<div class="rank"><h1 class="logo" style="font-size:clamp(34px,6vw,64px)">RANKING</h1>
+    <div class="tabs"><button data-act="tab" data-t="solo" class="${ui.tab === 'solo' ? 'on' : ''}">Solo</button><button data-act="tab" data-t="multi" class="${ui.tab === 'multi' ? 'on' : ''}">Multi</button></div>
+    ${body}<button class="btn ghost" data-act="${host ? 'back-host' : 'home'}">${host ? 'Wróć do pokoju' : 'Menu'}</button></div>`);
+}
+
+function render() {
+  soundBar();
+  if (ui.screen === 'home') return page(homeView());
+  if (ui.screen === 'solo-setup') return page(soloSetupView());
+  if (ui.screen === 'solo') return soloView();
+  if (ui.screen === 'soloEnd') return page(soloEndView());
+  if (ui.screen === 'host') return host ? hostView() : page(homeView());
+  if (ui.screen === 'rank') return rankView();
+}
+
+// ---------- kliknięcia ----------
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act;
+  if (a === 'ovbg') { if (e.target === el) closeOverlay(); return; }
+  if (a === 'ovno') return closeOverlay();
+  if (a === 'lobby') {
+    e.preventDefault();
+    if (await ask('Wrócić do lobby PL3Y?', 'Wróć', 'Zostań')) location.href = '/';
+    return;
+  }
+  if (a === 'snd-m') { Snd.setMusic(!Snd.st.m); return soundBar(); }
+  if (a === 'snd-s') { Snd.setSfx(!Snd.st.s); return soundBar(); }
+  if (a === 'snd-cfg') return soundCfg();
+  if (a === 'home') { ui.screen = 'home'; music(false); Snd.hush(false); document.body.classList.remove('hot', 'win'); return render(); }
+  if (a === 'home-x') { e.preventDefault(); return hostLeave(); }
+  if (a === 'solo-setup') { ui.screen = 'solo-setup'; return render(); }
+  if (a === 'time') {
+    const t = Number(el.dataset.t);
+    if (ui.screen === 'host') ui.mtime = t; else ui.time = t;
+    saveTimes(); Snd.play('tap'); return render();
+  }
+  if (a === 'solo-start') { Snd.hush(false); return soloStart(); }
+  if (a === 'ans') return soloPick(Number(el.dataset.i));
+  if (a === 'life') return soloLife(el.dataset.k);
+  if (a === 'quit') return soloQuit();
+  if (a === 'ladder') return overlay(`<div class="kicker">Drabinka</div><ol class="ladder">${ladderHtml(solo ? solo.qi : 0)}</ol><div class="row"><button class="btn" data-act="ovno">Zamknij</button></div>`);
+  if (a === 'menu') {
+    if (solo && (solo.phase === 'q') && !(await ask('Przerwać grę? Wynik nie zostanie zapisany.', 'Przerwij', 'Graj dalej'))) return;
+    stopTimer(); solo = null; ui.screen = 'home'; music(false); document.body.classList.remove('hot'); return render();
+  }
+  if (a === 'solo-save') { const n = document.getElementById('nick'); if (!n || !n.value.trim()) return n && n.focus(); ML.nick.set(n.value); return soloSave(); }
+  if (a === 'solo-retry') { solo.saved = null; return soloSave(); }
+  if (a === 'multi') return multiCreate();
+  if (a === 'resume') { const h = savedHost(); if (h) hostConnect(h.code, h.hostToken); return; }
+  if (a === 'back-host') { ui.screen = 'host'; return render(); }
+  if (a === 'kick') { host && host.conn.send({ t: 'kick', id: el.dataset.id }); return; }
+  if (a === 'host-start') { Snd.hush(false); return hostStart(); }
+  if (a === 'host-next') return hostNext();
+  if (a === 'host-leave') return hostLeave();
+  if (a === 'host-reset') { document.body.classList.remove('win'); return host.conn.send({ t: 'reset' }); }
+  if (a === 'host-close') return hostEnd();
+  if (a === 'rank') { ui.screen = 'rank'; return loadRank(); }
+  if (a === 'tab') { ui.tab = el.dataset.t; return render(); }
+});
+document.addEventListener('keydown', e => {
+  if ($ovl.innerHTML && e.key === 'Escape') return closeOverlay();
+  if (ui.screen === 'solo' && solo && solo.phase === 'q' && !$ovl.innerHTML) {
+    const i = 'abcd'.indexOf(e.key.toLowerCase()); if (i >= 0) soloPick(i);
+  }
+  if (ui.screen === 'solo-setup' && e.key === 'Enter') soloStart();
+});
+
+render();
+</script>
+</body>
+</html>
