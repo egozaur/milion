@@ -4,6 +4,12 @@
   const LADDER = [500, 1000, 2000, 5000, 10000, 20000, 40000, 75000, 125000, 250000, 500000, 1000000];
   const SAFE = [1, 6];                       // indeksy progów gwarantowanych: 1 000 i 40 000 zł
   const TIMES = [15, 30, 45, 60, 0];         // 0 = bez limitu (tylko solo)
+  // Poziomy gry: stopień trudności z bazy (1 bardzo łatwy … 5 ekspercki) dla każdego z 12 pytań drabinki.
+  const DIFFS = {
+    e: { name: 'Łatwy', map: [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4] },
+    n: { name: 'Normalny', map: [1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5] },
+    x: { name: 'Ekstremalny', map: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5] },
+  };
   const API = 'https://pl3y-server.pl3y.workers.dev';
   const BASE_URL = 'https://pl3y.pl/milion/';
   const LOCAL = new URLSearchParams(location.search).has('local');
@@ -30,9 +36,9 @@
   function markUsed(ids) {
     try { const u = [...used(), ...ids]; localStorage.setItem('milion_used', JSON.stringify(u.slice(-2000))); } catch (e) {}
   }
-  function pickLevel(lvl, n, avoid) {
-    const all = (window.ML_QUESTIONS || []).filter(q => q.lvl === lvl + 1);
-    if (!all.length) throw new Error('Brak pytań na poziom ' + (lvl + 1));
+  function pickLevel(tier, n, avoid) {
+    const all = (window.ML_QUESTIONS || []).filter(q => q.d === tier);
+    if (!all.length) throw new Error('Brak pytań o stopniu trudności ' + tier);
     const u = used();
     const fresh = shuffle(all.filter(q => !u.has(q.id) && !avoid.has(q.id)));
     const unseen = shuffle(all.filter(q => !avoid.has(q.id) && u.has(q.id)));
@@ -43,13 +49,14 @@
     out.forEach(q => avoid.add(q.id));
     return out;
   }
-  // Zestaw na jedną grę/rundę: 12 × { m: główne, s: zapasowe do zamiany }.
-  function pickSet(avoid = new Set()) {
-    const set = LADDER.map((_, l) => { const [m, s] = pickLevel(l, 2, avoid); return { m: mix(m), s: mix(s) }; });
+  // Zestaw na jedną grę/rundę: 12 × { m: główne, s: zapasowe do zamiany }; stopnie z bazy wg poziomu gry `diff`.
+  function pickSet(diff = 'n', avoid = new Set()) {
+    const map = (DIFFS[diff] || DIFFS.n).map;
+    const set = LADDER.map((_, l) => { const [m, s] = pickLevel(map[l], 2, avoid); return { m: mix(m), s: mix(s) }; });
     markUsed(set.map(x => x.m.id));
     return set;
   }
-  const pickPool = () => { const avoid = new Set(); return [0, 1, 2].map(() => pickSet(avoid)); };
+  const pickPool = diff => { const avoid = new Set(); return [0, 1, 2].map(() => pickSet(diff, avoid)); };
 
   // Symulowana publiczność (ta sama zasada co na serwerze): poprawna dostaje wagę zależną od poziomu, czasem tłum się myli.
   function audienceSim(ok, qi, removed = []) {
@@ -294,7 +301,7 @@
     };
   })();
 
-  window.ML = { LADDER, SAFE, TIMES, API, BASE_URL, LOCAL, APP, LET, esc, fmt, zl, shuffle, guaranteed, mix, pickSet, pickPool, audienceSim,
+  window.ML = { LADDER, SAFE, TIMES, DIFFS, API, BASE_URL, LOCAL, APP, LET, esc, fmt, zl, shuffle, guaranteed, mix, pickSet, pickPool, audienceSim,
     Conn, api, createRoom: () => api('POST', '/api/ml/rooms'), scores: () => api('GET', '/api/ml/scores'),
     postSolo: e => api('POST', '/api/ml/scores', e), joinUrl, qrSvg, nick, Snd };
 })();

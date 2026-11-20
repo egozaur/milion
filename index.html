@@ -99,6 +99,12 @@
 .rank .date{color:var(--dim);font-weight:500;font-size:13px}
 
 .hostq .players{margin-top:4px}
+.sq{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.sq .qbox{font-size:clamp(15px,1.7vw,22px);padding:12px 18px}
+.sq .ans{min-height:clamp(42px,5vh,58px);font-size:clamp(13px,1.4vw,18px)}
+.sq .kicker em{font-style:normal;color:var(--text);letter-spacing:.05em;text-transform:none}
+.diffbadge{font:800 12px/1 var(--font);letter-spacing:.2em;text-transform:uppercase;color:var(--gold);border:1.5px solid var(--gold3);border-radius:999px;padding:6px 10px}
+.rank .tabs.sub button{padding:.45em 1.1em;font-size:14px}
 .ov h3{margin:0 0 6px;font:800 22px/1.2 var(--disp)}
 .ov .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}
 .sliders{display:grid;gap:14px;margin-top:10px}
@@ -121,9 +127,13 @@ const $app = document.getElementById('app');
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const HOST_KEY = ML.LOCAL ? 'milion_host_local' : 'milion_host';
 
-const ui = { screen: 'home', time: 30, mtime: 30, tab: 'solo', rank: null, rankErr: '' };
-try { const t = JSON.parse(localStorage.getItem('milion_time') || '{}'); if (ML.TIMES.includes(t.s)) ui.time = t.s; if (ML.TIMES.includes(t.m) && t.m) ui.mtime = t.m; } catch (e) {}
-const saveTimes = () => { try { localStorage.setItem('milion_time', JSON.stringify({ s: ui.time, m: ui.mtime })); } catch (e) {} };
+const ui = { screen: 'home', time: 30, mtime: 30, diff: 'n', mdiff: 'n', tab: 'solo', rdiff: 'n', rank: null, rankErr: '' };
+try {
+  const t = JSON.parse(localStorage.getItem('milion_time') || '{}');
+  if (ML.TIMES.includes(t.s)) ui.time = t.s; if (ML.TIMES.includes(t.m) && t.m) ui.mtime = t.m;
+  if (ML.DIFFS[t.d]) ui.diff = ui.rdiff = t.d; if (ML.DIFFS[t.md]) ui.mdiff = t.md;
+} catch (e) {}
+const saveTimes = () => { try { localStorage.setItem('milion_time', JSON.stringify({ s: ui.time, m: ui.mtime, d: ui.diff, md: ui.mdiff })); } catch (e) {} };
 
 // ---------- rysowanie ----------
 let skel = null;
@@ -164,6 +174,10 @@ function ladderHtml(qi, done) {
 function timesHtml(cur, noInf) {
   return '<div class="times">' + ML.TIMES.filter(t => !(noInf && !t)).map(t => `<button data-act="time" data-t="${t}" class="${t === cur ? 'on' : ''}">${t ? t + ' s' : '∞'}</button>`).join('') + '</div>';
 }
+function diffsHtml(cur) {
+  return '<div class="times">' + Object.entries(ML.DIFFS).map(([k, d]) => `<button data-act="diff" data-d="${k}" class="${k === cur ? 'on' : ''}">${d.name}</button>`).join('') + '</div>';
+}
+const diffNote = { e: 'Łatwe i średnie pytania, na koniec trudne.', n: 'Od bardzo łatwych do eksperckich.', x: 'Tylko pytania eksperckie — od pierwszego do ostatniego.' };
 const timerHtml = (limited) => limited ? '<div class="trow"><div class="timer"><i></i></div><span class="tnum"></span></div>' : '<div class="trow inf">bez limitu czasu</div>';
 
 // ---------- licznik czasu ----------
@@ -253,6 +267,7 @@ function soloSetupView() {
     <div class="kicker">Gra solo</div><h2>12 pytań do miliona</h2>
     <div><div class="kicker" style="margin-bottom:10px">Twój nick (do rankingu)</div>
       <div class="nickrow"><input class="field" id="nick" maxlength="16" placeholder="Nick" value="${esc(ML.nick.get())}" autocomplete="off"></div></div>
+    <div><div class="kicker" style="margin-bottom:10px">Poziom trudności</div>${diffsHtml(ui.diff)}<div class="muted" style="margin-top:8px;font-size:14px">${diffNote[ui.diff]}</div></div>
     <div><div class="kicker" style="margin-bottom:10px">Czas na pytanie</div>${timesHtml(ui.time)}</div>
     <ul class="rules"><li>Progi gwarantowane: ${zl(1000)} i ${zl(40000)}.</li><li>Kliknięcie odpowiedzi od razu ją zatwierdza.</li>
       <li>Koła: 50:50, publiczność i zamiana pytania — każde raz.</li><li>W każdej chwili możesz zrezygnować i zabrać wygraną.</li></ul>
@@ -265,7 +280,7 @@ let solo = null;
 const curQ = () => { const l = solo.set[solo.qi]; return solo.swap ? l.s : l.m; };
 function soloStart() {
   const n = document.getElementById('nick'); if (n) ML.nick.set(n.value);
-  solo = { set: ML.pickSet(), qi: 0, life: { f: true, a: true, s: true }, swap: false, fifty: [], aud: null, sel: null, phase: 'q', time: ui.time, result: null, saved: null };
+  solo = { set: ML.pickSet(ui.diff), diff: ui.diff, qi: 0, life: { f: true, a: true, s: true }, swap: false, fifty: [], aud: null, sel: null, phase: 'q', time: ui.time, result: null, saved: null };
   ui.screen = 'solo';
   document.body.classList.remove('win');
   Snd.play('start'); music(true);
@@ -335,7 +350,7 @@ async function soloSave() {
   const nick = ML.nick.get();
   if (!nick || !solo || !solo.result || solo.saved) return;
   solo.saved = 'wait'; render();
-  try { const r = await ML.postSolo({ nick, amount: solo.result.amount, qs: solo.result.qs }); solo.saved = { rank: r.rank }; }
+  try { const r = await ML.postSolo({ nick, amount: solo.result.amount, qs: solo.result.qs, lvl: solo.diff }); solo.saved = { rank: r.rank }; }
   catch (e) { solo.saved = 'err'; }
   render();
 }
@@ -343,7 +358,7 @@ function soloView() {
   const q = curQ(), s = solo;
   const show = s.phase === 'reveal' ? q.ok : null;
   const head = `<button class="btn ghost sm" data-act="menu">Menu</button><span class="info">Pytanie <em>${s.qi + 1}</em>/12 · za <em>${zl(LADDER[s.qi])}</em></span>
-    <span class="grow"></span><button class="btn ghost sm ladbtn" data-act="ladder">Drabinka</button><span class="muted">${esc(ML.nick.get())}</span>`;
+    <span class="grow"></span><span class="diffbadge">${ML.DIFFS[s.diff].name}</span><button class="btn ghost sm ladbtn" data-act="ladder">Drabinka</button><span class="muted">${esc(ML.nick.get())}</span>`;
   const lifes = `<div class="lifes">
     <button class="life${s.life.f ? '' : ' used'}" data-act="life" data-k="f" ${s.life.f && s.phase === 'q' ? '' : 'disabled'} title="50:50" aria-label="50:50">50:50</button>
     <button class="life${s.life.a ? '' : ' used'}" data-act="life" data-k="a" ${s.life.a && s.phase === 'q' ? '' : 'disabled'} title="Pytanie do publiczności" aria-label="Pytanie do publiczności">${ICON.aud}</button>
@@ -438,8 +453,8 @@ function hostState(v) {
 function hostNext() { clearTimeout(autoNext); host && host.conn && host.conn.send({ t: 'next' }); }
 function hostStart() {
   if (!host || !host.view || !host.view.players.length) return;
-  let pool; try { pool = ML.pickPool(); } catch (e) { host.err = e.message; return render(); }
-  host.conn.send({ t: 'start', time: ui.mtime, pool });
+  let pool; try { pool = ML.pickPool(ui.mdiff); } catch (e) { host.err = e.message; return render(); }
+  host.conn.send({ t: 'start', time: ui.mtime, pool }); host.diff = ui.mdiff;
 }
 async function hostLeave() {
   if (host && host.view && host.view.phase !== 'lobby' && host.view.phase !== 'end' && !(await ask('Wyjść z meczu? Gracze zostaną w pokoju i możesz wrócić.', 'Wyjdź', 'Zostań'))) return;
@@ -475,12 +490,14 @@ function lobbyView() {
     <div class="qrbox panel rise"><div class="kicker">Zeskanuj telefonem</div><div class="qr" id="r-qr"></div><div class="code" id="r-code"></div><div class="url" id="r-url"></div></div>
     <div class="right"><div class="kicker">Multi · do ${12} graczy</div><h2>Dołączcie do gry!</h2>
       <div class="chips" id="r-players"></div>
+      <div><div class="kicker" style="margin-bottom:10px">Poziom trudności</div><div id="r-diff"></div></div>
       <div><div class="kicker" style="margin-bottom:10px">Czas na pytanie</div><div id="r-times"></div></div>
       <div id="r-start"></div><div id="r-status"></div>
       <p class="muted" style="max-width:520px;margin:0;font-size:14px">3 rundy po 12 pytań. Błąd albo brak odpowiedzi = koniec rundy dla gracza. Najszybsza poprawna odpowiedź: +20%, druga +10%, trzecia +5%. Wygrywa suma punktów.</p>
     </div></div>`, {
     'r-qr': ML.qrSvg(url), 'r-code': esc(v.code), 'r-url': esc(url.replace(/^https?:\/\//, '')),
     'r-players': v.players.length ? v.players.map(p => `<span class="chip${p.conn ? '' : ' off'}">${esc(p.name)}<button class="x" data-act="kick" data-id="${esc(p.id)}" aria-label="Usuń ${esc(p.name)}">✕</button></span>`).join('') : '<span class="empty">Czekamy na graczy…</span>',
+    'r-diff': diffsHtml(ui.mdiff) + `<div class="muted" style="margin-top:8px;font-size:14px">${diffNote[ui.mdiff]}</div>`,
     'r-times': timesHtml(ui.mtime, true),
     'r-start': `<button class="btn big" data-act="host-start" ${v.players.length ? '' : 'disabled'}>Start meczu</button>`,
     'r-status': statusHtml(host.status) + (host.err ? ` <span class="muted">· ${esc(host.err)}</span>` : ''),
@@ -489,7 +506,7 @@ function lobbyView() {
 function hostQView() {
   const v = host.view, open = v.phase === 'reveal';
   const head = `<button class="btn ghost sm" data-act="host-leave">Menu</button><span class="info">Runda <em>${v.round + 1}</em>/${v.rounds} · Pytanie <em>${v.qi + 1}</em>/12 · za <em>${zl(LADDER[v.qi])}</em></span>
-    <span class="grow"></span>${statusHtml(host.status)}<span class="muted">Kod: <b style="color:var(--gold2)">${esc(v.code)}</b></span>`;
+    <span class="grow"></span>${host.diff ? `<span class="diffbadge">${ML.DIFFS[host.diff].name}</span>` : ''}${statusHtml(host.status)}<span class="muted">Kod: <b style="color:var(--gold2)">${esc(v.code)}</b></span>`;
   const alive = v.players.filter(p => !p.out || (open && p.outQ === v.qi));
   const answered = v.players.filter(p => p.answered && !p.out).length;
   const chips = sorted(v.players).map(p => {
@@ -504,9 +521,12 @@ function hostQView() {
   const say = open ? `<span class="say">${v.players.filter(p => p.correct).length} z ${alive.length} poprawnie</span><button class="btn" data-act="host-next">Dalej →</button>`
     : `<span class="say">Odpowiedzi: ${answered}/${v.players.filter(p => !p.out).length}</span><span></span>`;
   paint('hostq', `<div class="game hostq"><header class="bar" id="r-head"></header><main class="stage"><div class="center">
-      <div id="r-timer"></div><div id="r-q"></div><div id="r-ans"></div><div class="foot" id="r-foot"></div><div class="chips players" id="r-players"></div></div>
+      <div id="r-timer"></div><div id="r-q"></div><div id="r-ans"></div><div id="r-sq"></div><div class="foot" id="r-foot"></div><div class="chips players" id="r-players"></div></div>
       <aside class="side panel"><ol class="ladder" id="r-ladder"></ol></aside></main></div>`, {
     'r-head': head,
+    // Gracze po „zamianie pytania” mają inne (wspólne) pytanie: pokazujemy je osobno, z ich odpowiedziami przy odsłonięciu.
+    'r-sq': v.sq ? `<div class="panel sq rise" data-k="${v.round}-${v.qi}"><div class="kicker">Zamiana pytania · <em>${v.sq.names.map(esc).join(', ')}</em></div>
+      <div class="qbox">${esc(v.sq.q.q)}</div>${answersHtml(v.sq.q, { ok: open ? v.sq.q.ok : null, counts: open ? v.sq.counts : null })}</div>` : '',
     'r-timer': open ? '<div class="trow inf">odsłonięcie</div>' : timerHtml(true),
     'r-q': v.q ? `<div class="qbox rise" data-k="${v.round}-${v.qi}">${esc(v.q.q)}</div>` : '',
     'r-ans': v.q ? answersHtml(v.q, { ok: open ? v.q.ok : null, counts: open ? v.counts : null }) : '',
@@ -540,8 +560,10 @@ function rankView() {
   if (ui.rankErr) body = `<p class="muted">${esc(ui.rankErr)}</p><button class="btn ghost" data-act="rank">Spróbuj ponownie</button>`;
   else if (!r) body = '<p class="muted">Ładowanie…</p>';
   else if (ui.tab === 'solo') {
-    body = `<div class="grid" style="grid-template-columns:1fr;width:min(720px,100%)"><div class="panel rise"><h3>Najwyższe wygrane</h3>${r.solo.length ? `<table class="table"><thead><tr><th></th><th>Gracz</th><th class="n">Wygrana</th><th class="n">Pytania</th><th class="n">Data</th></tr></thead><tbody>${
-      r.solo.map((e, i) => `<tr class="${e.nick.toLowerCase() === me ? 'me' : ''}"><td>${medal(i + 1)}</td><td>${esc(e.nick)}</td><td class="n">${zl(e.amount)}</td><td class="n">${e.qs}/12</td><td class="n date">${day(e.ts)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:10px">Jeszcze nikt nic nie wygrał. Bądź pierwszy!</p>'}</div></div>`;
+    const list = r.solo.filter(e => (e.lvl || 'n') === ui.rdiff);
+    body = `<div class="tabs sub">${Object.entries(ML.DIFFS).map(([k, d]) => `<button data-act="rdiff" data-d="${k}" class="${k === ui.rdiff ? 'on' : ''}">${d.name}</button>`).join('')}</div>
+      <div class="grid" style="grid-template-columns:1fr;width:min(720px,100%)"><div class="panel rise"><h3>Najwyższe wygrane · ${ML.DIFFS[ui.rdiff].name}</h3>${list.length ? `<table class="table"><thead><tr><th></th><th>Gracz</th><th class="n">Wygrana</th><th class="n">Pytania</th><th class="n">Data</th></tr></thead><tbody>${
+      list.map((e, i) => `<tr class="${e.nick.toLowerCase() === me ? 'me' : ''}"><td>${medal(i + 1)}</td><td>${esc(e.nick)}</td><td class="n">${zl(e.amount)}</td><td class="n">${e.qs}/12</td><td class="n date">${day(e.ts)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:10px">Jeszcze nikt nic nie wygrał. Bądź pierwszy!</p>'}</div></div>`;
   } else {
     body = `<div class="grid"><div class="panel rise"><h3>Najlepsze mecze</h3>${r.multi.length ? `<table class="table"><thead><tr><th></th><th>Gracz</th><th class="n">Punkty</th><th class="n">Data</th></tr></thead><tbody>${
       r.multi.map((e, i) => `<tr class="${e.nick.toLowerCase() === me ? 'me' : ''}"><td>${medal(i + 1)}</td><td>${esc(e.nick)}</td><td class="n">${fmt(e.pts)}</td><td class="n date">${day(e.ts)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:10px">Brak rozegranych meczów.</p>'}</div>
@@ -607,6 +629,11 @@ document.addEventListener('click', async e => {
   if (a === 'host-close') return hostEnd();
   if (a === 'rank') { ui.screen = 'rank'; return loadRank(); }
   if (a === 'tab') { ui.tab = el.dataset.t; return render(); }
+  if (a === 'rdiff') { ui.rdiff = el.dataset.d; return render(); }
+  if (a === 'diff') {
+    if (ui.screen === 'host') ui.mdiff = el.dataset.d; else ui.diff = ui.rdiff = el.dataset.d;
+    saveTimes(); Snd.play('tap'); return render();
+  }
 });
 document.addEventListener('keydown', e => {
   if ($ovl.innerHTML && e.key === 'Escape') return closeOverlay();
