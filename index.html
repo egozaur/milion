@@ -82,6 +82,10 @@
 .podium .p1 i{height:clamp(110px,20vh,180px);background:linear-gradient(180deg,var(--gold2),var(--gold3));color:#1d1300}
 .podium .p2 i{height:clamp(80px,14vh,130px)}
 .podium .p3 i{height:clamp(60px,10vh,95px)}
+.podium .p3{--d:.2s}.podium .p2{--d:.9s}.podium .p1{--d:1.6s}
+.podium .st i{transform-origin:bottom;animation:grow .8s var(--d,0s) cubic-bezier(.2,1,.3,1) both}
+.podium .st b,.podium .st span{animation:fade .5s calc(var(--d,0s) + .5s) both}
+@keyframes grow{from{transform:scaleY(0)}}
 
 /* ---------- koniec solo ---------- */
 .result{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px 16px 80px;text-align:center}
@@ -116,6 +120,7 @@
 <body>
 <div id="fx" aria-hidden="true"><div class="spot l"></div><div class="spot c"></div><div class="spot r"></div><div class="floor"></div></div>
 <div id="app"></div>
+<div class="emotes" id="emotes" aria-hidden="true"></div>
 <div class="sound" id="sound"></div>
 <div id="ovl"></div>
 <script src="qrcode.js"></script>
@@ -169,8 +174,19 @@ function answersHtml(q, o = {}) {
     return o.click ? `<button class="${c}" data-act="ans" data-i="${i}"${fifty.includes(i) || o.sel != null ? ' disabled' : ''}>${inner}</button>` : `<div class="${c}">${inner}</div>`;
   }).join('') + '</div>';
 }
-function ladderHtml(qi, done) {
-  return LADDER.map((v, i) => `<li class="${i === qi ? 'cur' : ''}${i < qi || (done && i === qi) ? ' done' : ''}${SAFE.includes(i) ? ' safe' : ''}${i === 11 ? ' top' : ''}"><b>${i + 1}</b><span>${zl(v)}</span></li>`).join('');
+// anim: nowy szczebel „wskakuje” (arrive), poprzedni gaśnie (just), a po zaliczeniu progu zatrzaskuje się kłódka (snap).
+// Klasy animacji są stałe, dopóki pytanie trwa, więc przerysowanie w trakcie nie ucina animacji.
+function ladderHtml(qi, done, anim) {
+  return LADDER.map((v, i) => {
+    let c = i === qi ? 'cur' : '';
+    if (i < qi || (done && i === qi)) c += ' done';
+    if (SAFE.includes(i)) c += ' safe';
+    if (i === 11) c += ' top';
+    if (anim && !done && i === qi) c += ' arrive';
+    if (anim && !done && i === qi - 1) c += ' just';
+    if (anim && done && i === qi && SAFE.includes(i)) c += ' snap';
+    return `<li class="${c}"><b>${i + 1}</b><span>${zl(v)}</span></li>`;
+  }).join('');
 }
 function timesHtml(cur, noInf) {
   return '<div class="times">' + ML.TIMES.filter(t => !(noInf && !t)).map(t => `<button data-act="time" data-t="${t}" class="${t === cur ? 'on' : ''}">${t ? t + ' s' : '∞'}</button>`).join('') + '</div>';
@@ -183,18 +199,20 @@ const timerHtml = (limited) => limited ? '<div class="trow"><div class="timer"><
 
 // ---------- licznik czasu ----------
 const T = { deadline: 0, total: 0, onEnd: null, last: -1 };
-function setTimer(deadline, total, onEnd) { T.deadline = deadline; T.total = total; T.onEnd = onEnd || null; }
+function setTimer(deadline, total, onEnd) { T.deadline = deadline; T.total = total; T.onEnd = onEnd || null; T.nextTick = 0; }
 function stopTimer() { T.deadline = 0; T.onEnd = null; }
 function loop() {
   requestAnimationFrame(loop);
   if (!T.deadline) return;
   const left = Math.max(0, T.deadline - performance.now());
-  const low = left < 5500;
+  const low = left < 5500, mid = !low && T.total && left / T.total < 0.5;
   const bar = document.querySelector('#r-timer .timer i'), num = document.querySelector('#r-timer .tnum');
-  if (bar) { bar.style.transform = `scaleX(${T.total ? left / T.total : 0})`; bar.parentNode.classList.toggle('low', low); }
+  if (bar) { bar.style.transform = `scaleX(${T.total ? left / T.total : 0})`; bar.parentNode.classList.toggle('low', low); bar.parentNode.classList.toggle('mid', !!mid); }
   const s = Math.ceil(left / 1000);
-  if (num) { num.textContent = s; num.classList.toggle('low', low); }
-  if (s !== T.last) { if (low && s > 0 && T.last > s) Snd.play('tick'); T.last = s; }
+  if (num) { num.textContent = s; num.classList.toggle('low', low); num.classList.toggle('mid', !!mid); }
+  // tykanie przyspiesza: od ok. 1 tyknięcia na sekundę do 6 na sekundę tuż przed końcem
+  const now = performance.now();
+  if (low && left > 0 && now >= (T.nextTick || 0)) { Snd.play('tick'); T.nextTick = now + 160 + 840 * (left / 5500); }
   if (left <= 0 && T.onEnd) { const f = T.onEnd; stopTimer(); f(); }
 }
 requestAnimationFrame(loop);
@@ -217,18 +235,26 @@ function audOverlay(pct, note) {
     <div class="row"><button class="btn" data-act="ovno">Dzięki!</button></div>`);
   requestAnimationFrame(() => requestAnimationFrame(() => $ovl.querySelectorAll('.aud i').forEach(i => i.style.setProperty('--h', Math.max(2, i.dataset.h) + '%'))));
 }
-function confetti() {
+function confetti(gold) {
   if (calm()) return;
   const c = document.createElement('div'); c.className = 'confetti';
   const col = ['#f6c64e', '#ffe7a1', '#ffffff', '#5b7bff', '#22c873'];
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < (gold ? 220 : 120); i++) {
     const e = document.createElement('i');
-    e.style.left = Math.random() * 100 + 'vw'; e.style.background = col[i % col.length];
+    if (gold && i % 2 === 0) e.className = 'coin'; else e.style.background = col[i % col.length];
+    e.style.left = Math.random() * 100 + 'vw';
     e.style.setProperty('--dx', (Math.random() * 30 - 15) + 'vw'); e.style.setProperty('--rot', (Math.random() * 1440 - 720) + 'deg');
     e.style.animationDuration = 2.5 + Math.random() * 3 + 's'; e.style.animationDelay = Math.random() * 1.5 + 's';
     c.appendChild(e);
   }
   document.body.appendChild(c); setTimeout(() => c.remove(), 8000);
+}
+// Błysk po odsłonięciu odpowiedzi: złoty (dobrze) albo czerwone drgnięcie (źle).
+function fxReveal(good) {
+  if (calm()) return;
+  const b = document.body, c = good ? 'fx-good' : 'fx-bad';
+  b.classList.remove('fx-good', 'fx-bad'); void b.offsetWidth; b.classList.add(c);
+  setTimeout(() => b.classList.remove(c), 1300);
 }
 
 // ---------- dźwięk ----------
@@ -291,18 +317,20 @@ function soloQ() {
   solo.phase = 'q'; solo.swap = false; solo.fifty = []; solo.aud = null; solo.sel = null;
   Snd.heat(solo.qi);
   document.body.classList.toggle('hot', solo.qi >= 7);
+  document.body.classList.remove('tense');
   if (solo.time) setTimer(performance.now() + solo.time * 1000, solo.time * 1000, soloTimeUp); else stopTimer();
   render();
 }
 function soloPick(i) {
   if (!solo || solo.phase !== 'q' || solo.fifty.includes(i)) return;
   solo.sel = i; solo.phase = 'lock'; stopTimer();
-  Snd.play('lock'); render();
-  setTimeout(soloReveal, 1600);
+  Snd.play('lock'); document.body.classList.add('tense'); render();
+  setTimeout(soloReveal, 1600 + solo.qi * 60);   // im wyżej na drabince, tym dłuższe napięcie
 }
 function soloReveal() {
   const q = curQ();
-  solo.phase = 'reveal'; render();
+  solo.phase = 'reveal'; document.body.classList.remove('tense'); render();
+  fxReveal(solo.sel === q.ok);
   if (solo.sel === q.ok) {
     Snd.play('good');
     setTimeout(() => { if (solo.qi === 11) soloFinish('win'); else { solo.qi++; soloQ(); } }, 1700);
@@ -310,7 +338,7 @@ function soloReveal() {
 }
 function soloTimeUp() {
   if (!solo || solo.phase !== 'q') return;
-  solo.phase = 'reveal'; solo.sel = null; Snd.play('bad'); render();
+  solo.phase = 'reveal'; solo.sel = null; Snd.play('bad'); fxReveal(false); render();
   setTimeout(() => soloFinish('time'), 2800);
 }
 async function soloQuit() {
@@ -341,8 +369,8 @@ function soloFinish(reason) {
   const amount = reason === 'win' ? LADDER[11] : reason === 'quit' ? (solo.qi ? LADDER[solo.qi - 1] : 0) : ML.guaranteed(solo.qi);
   solo.result = { reason, amount, qs: passed };
   ui.screen = 'soloEnd';
-  document.body.classList.remove('hot');
-  if (reason === 'win') { document.body.classList.add('win'); Snd.play('win'); confetti(); }
+  document.body.classList.remove('hot', 'tense');
+  if (reason === 'win') { document.body.classList.add('win'); Snd.play('win'); confetti(true); }
   Snd.hush(true);
   if (amount > 0 && ML.nick.get()) soloSave();
   render();
@@ -376,7 +404,7 @@ function soloView() {
     'r-q': `<div class="qbox rise" data-k="${s.qi}${s.swap ? 's' : ''}">${esc(q.q)}</div>`,
     'r-ans': answersHtml(q, { click: true, fifty: s.fifty, sel: s.sel, ok: show, pct: s.aud }),
     'r-foot': foot,
-    'r-ladder': ladderHtml(s.qi, s.phase === 'reveal' && s.sel === q.ok),
+    'r-ladder': ladderHtml(s.qi, s.phase === 'reveal' && s.sel === q.ok, true),
   });
 }
 function soloEndView() {
@@ -423,13 +451,36 @@ function hostConnect(code, hostToken) {
     onMessage: m => {
       if (m.t === 'error') { host.err = m.err || 'Błąd'; if (m.code === 'badhost') { try { localStorage.removeItem(HOST_KEY); } catch (e) {} } render(); return; }
       if (m.t === 'state') hostState(m.view);
+      else if (m.t === 'emo') emote(m);
     },
   });
   render();
 }
+// Emotka z telefonu: unosi się przez ekran z imieniem gracza.
+function emote(m) {
+  const box = document.getElementById('emotes');
+  if (!box || ui.screen !== 'host') return;
+  while (box.childElementCount > 24) box.firstChild.remove();
+  const d = document.createElement('div'); d.className = 'emo';
+  d.style.left = (6 + Math.random() * 84) + 'vw';
+  d.style.setProperty('--sx', (Math.random() * 10 - 5) + 'vw');
+  d.style.setProperty('--dur', (3.6 + Math.random() * 1.2) + 's');
+  d.innerHTML = `<b>${ML.EMO[m.e] || '👍'}</b><span>${esc(m.name)}</span>`;
+  box.appendChild(d); setTimeout(() => d.remove(), 5200);
+}
+// Napięcie przed odsłonięciem: po nadejściu wyniku TV chwilę „trzyma” widok pytania (host.hold), potem dopiero pokazuje odpowiedź.
+let holdT = null;
+function holdOff() { clearTimeout(holdT); holdT = null; if (host) host.hold = false; document.body.classList.remove('tense'); }
+function revealFx(v) {
+  const any = v.players.some(p => p.correct);
+  Snd.play(any ? 'good' : 'bad'); fxReveal(any);
+  const r = v.round, q = v.qi;
+  autoNext = setTimeout(() => { if (host && host.view && host.view.phase === 'reveal' && host.view.round === r && host.view.qi === q) hostNext(); }, 7000);
+}
 function hostState(v) {
   const old = host.view; host.view = v; host.err = '';
   const changed = !old || old.phase !== v.phase || old.qi !== v.qi || old.round !== v.round;
+  if (host.hold && (changed || v.phase !== 'reveal')) holdOff();
   if (v.phase === 'q') {
     setTimer(performance.now() + v.left, v.time * 1000, null);
     if (changed) { Snd.heat(v.qi); document.body.classList.toggle('hot', v.qi >= 7); }
@@ -440,10 +491,10 @@ function hostState(v) {
     clearTimeout(autoNext);
     if (v.phase === 'q' && v.qi === 0) Snd.play('start');
     if (v.phase === 'reveal') {
-      const any = v.players.some(p => p.correct);
-      Snd.play(any ? 'good' : 'bad');
-      const r = v.round, q = v.qi;
-      autoNext = setTimeout(() => { if (host && host.view && host.view.phase === 'reveal' && host.view.round === r && host.view.qi === q) hostNext(); }, 7000);
+      if (old && old.phase === 'q') {
+        host.hold = true; document.body.classList.add('tense'); Snd.play('lock');
+        holdT = setTimeout(() => { holdT = null; if (!host) return; host.hold = false; document.body.classList.remove('tense'); revealFx(host.view); render(); }, 1500 + v.qi * 60);
+      } else revealFx(v);
     }
     if (v.phase === 'end') { document.body.classList.remove('hot'); document.body.classList.add('win'); Snd.play('win'); confetti(); }
     else document.body.classList.remove('win');
@@ -460,7 +511,7 @@ function hostStart() {
 async function hostLeave() {
   if (host && host.view && host.view.phase !== 'lobby' && host.view.phase !== 'end' && !(await ask('Wyjść z meczu? Gracze zostaną w pokoju i możesz wrócić.', 'Wyjdź', 'Zostań'))) return;
   if (host && host.conn) host.conn.stop();
-  host = null; clearTimeout(autoNext); stopTimer();
+  clearTimeout(holdT); holdT = null; document.body.classList.remove('tense'); host = null; clearTimeout(autoNext); stopTimer();
   document.body.classList.remove('hot', 'win');
   ui.screen = 'home'; music(false); render();
 }
@@ -475,6 +526,17 @@ const STATUS = { online: 'połączono', connecting: 'łączenie…', reconnectin
 const statusHtml = s => `<span class="status ${s === 'online' ? 'online' : s === 'connecting' || s === 'reconnecting' ? '' : 'bad'}">${STATUS[s] || s}</span>`;
 const medal = n => `<span class="medal${n <= 3 ? ' m' + n : ''}">${n}</span>`;
 const sorted = ps => [...ps].sort((a, b) => b.total - a.total);
+// Statystyki meczu z danych serwera: najszybsza poprawna odpowiedź, najdłuższa seria, najwięcej użytych kół.
+function statsHtml(ps) {
+  const top = (key, min) => ps.filter(p => p[key] != null && p[key] >= min).sort((a, b) => key === 'fast' ? a.fast - b.fast : b[key] - a[key])[0];
+  const f = top('fast', 0), s = top('best', 1), l = top('used', 1);
+  const card = (ic, t, name, val, i) => `<div class="stat panel" style="animation-delay:${i * .15 + 2}s"><span class="ic">${ic}</span><span class="kicker">${t}</span><b>${esc(name)}</b><span>${val}</span></div>`;
+  const cards = [];
+  if (f) cards.push(card('⚡', 'Najszybszy', f.name, (f.fast / 1000).toFixed(2).replace('.', ',') + ' s', cards.length));
+  if (s) cards.push(card('🔥', 'Najdłuższa seria', s.name, s.best + ' poprawn' + (s.best === 1 ? 'a' : s.best < 5 ? 'e' : 'ych') + ' z rzędu', cards.length));
+  if (l) cards.push(card('🛟', 'Król kół ratunkowych', l.name, l.used + ' ' + (l.used === 1 ? 'koło' : l.used < 5 ? 'koła' : 'kół'), cards.length));
+  return cards.length ? `<div class="stats">${cards.join('')}</div>` : '';
+}
 
 function hostView() {
   const h = host, v = h.view;
@@ -497,7 +559,7 @@ function lobbyView() {
       <p class="muted" style="max-width:520px;margin:0;font-size:14px">3 rundy po 12 pytań. Błąd albo brak odpowiedzi = koniec rundy dla gracza. Najszybsza poprawna odpowiedź: +20%, druga +10%, trzecia +5%. Wygrywa suma punktów.</p>
     </div></div>`, {
     'r-qr': ML.qrSvg(url), 'r-code': esc(v.code), 'r-url': esc(url.replace(/^https?:\/\//, '')),
-    'r-players': v.players.length ? v.players.map(p => `<span class="chip${p.conn ? '' : ' off'}">${esc(p.name)}<button class="x" data-act="kick" data-id="${esc(p.id)}" aria-label="Usuń ${esc(p.name)}">✕</button></span>`).join('') : '<span class="empty">Czekamy na graczy…</span>',
+    'r-players': v.players.length ? v.players.map(p => `<span class="chip players-av${p.conn ? '' : ' off'}">${ML.av(p.name)}${esc(p.name)}<button class="x" data-act="kick" data-id="${esc(p.id)}" aria-label="Usuń ${esc(p.name)}">✕</button></span>`).join('') : '<span class="empty">Czekamy na graczy…</span>',
     'r-diff': diffsHtml(ui.mdiff) + `<div class="muted" style="margin-top:8px;font-size:14px">${diffNote[ui.mdiff]}</div>`,
     'r-times': timesHtml(ui.mtime, true),
     'r-start': `<button class="btn big" data-act="host-start" ${v.players.length ? '' : 'disabled'}>Start meczu</button>`,
@@ -505,22 +567,24 @@ function lobbyView() {
   });
 }
 function hostQView() {
-  const v = host.view, open = v.phase === 'reveal';
+  const v = host.view, hold = !!host.hold && v.phase === 'reveal', open = v.phase === 'reveal' && !hold;
+  const outNow = p => p.out && !(hold && p.outQ === v.qi);   // w trakcie napięcia nie zdradzamy, kto odpadł
   const head = `<button class="btn ghost sm" data-act="host-leave">Menu</button><span class="info">Runda <em>${v.round + 1}</em>/${v.rounds} · Pytanie <em>${v.qi + 1}</em>/12 · za <em>${zl(LADDER[v.qi])}</em></span>
     <span class="grow"></span>${host.diff ? `<span class="diffbadge">${ML.DIFFS[host.diff].name}</span>` : ''}${statusHtml(host.status)}<span class="muted">Kod: <b style="color:var(--gold2)">${esc(v.code)}</b></span>`;
   const alive = v.players.filter(p => !p.out || (open && p.outQ === v.qi));
-  const answered = v.players.filter(p => p.answered && !p.out).length;
+  const answered = v.players.filter(p => p.answered && !outNow(p)).length;
   const chips = sorted(v.players).map(p => {
-    let c = 'chip', extra = '';
+    let c = 'chip players-av', extra = '';
     if (open && p.correct) { c += ' good'; extra = `<span class="gain">+${fmt(p.gain)}${p.rank <= 3 ? ' · ' + p.rank + '.' : ''}</span>`; }
     else if (open && p.correct === false) { c += ' bad'; extra = '<span class="gain" style="color:var(--bad)">odpada</span>'; }
-    else if (p.out) c += ' out';
+    else if (outNow(p)) c += ' out';
     else if (p.answered) c += ' ok';
+    else c += ' think';
     if (!p.conn) c += ' off';
-    return `<span class="${c}">${esc(p.name)}${extra}<span class="pts">${fmt(p.total)}</span></span>`;
+    return `<span class="${c}">${ML.av(p.name)}${esc(p.name)}${extra}<span class="pts">${fmt(hold ? p.total - p.gain : p.total)}</span></span>`;
   }).join('');
   const say = open ? `<span class="say">${v.players.filter(p => p.correct).length} z ${alive.length} poprawnie</span><button class="btn" data-act="host-next">Dalej →</button>`
-    : `<span class="say">Odpowiedzi: ${answered}/${v.players.filter(p => !p.out).length}</span><span></span>`;
+    : `<span class="say">${hold ? 'Sprawdzamy…' : `Odpowiedzi: ${answered}/${v.players.filter(p => !outNow(p)).length}`}</span><span></span>`;
   paint('hostq', `<div class="game hostq"><header class="bar" id="r-head"></header><main class="stage"><div class="center">
       <div id="r-timer"></div><div id="r-q"></div><div id="r-ans"></div><div id="r-sq"></div><div class="foot" id="r-foot"></div><div class="chips players" id="r-players"></div></div>
       <aside class="side panel"><ol class="ladder" id="r-ladder"></ol></aside></main></div>`, {
@@ -528,10 +592,10 @@ function hostQView() {
     // Gracze po „zamianie pytania” mają inne (wspólne) pytanie: pokazujemy je osobno, z ich odpowiedziami przy odsłonięciu.
     'r-sq': v.sq ? `<div class="panel sq rise" data-k="${v.round}-${v.qi}"><div class="kicker">Zamiana pytania · <em>${v.sq.names.map(esc).join(', ')}</em></div>
       <div class="qbox">${esc(v.sq.q.q)}</div>${answersHtml(v.sq.q, { ok: open ? v.sq.q.ok : null, counts: open ? v.sq.counts : null })}</div>` : '',
-    'r-timer': open ? '<div class="trow inf">odsłonięcie</div>' : timerHtml(true),
+    'r-timer': open ? '<div class="trow inf">odsłonięcie</div>' : hold ? '<div class="trow inf">sprawdzamy…</div>' : timerHtml(true),
     'r-q': v.q ? `<div class="qbox rise" data-k="${v.round}-${v.qi}">${esc(v.q.q)}</div>` : '',
     'r-ans': v.q ? answersHtml(v.q, { ok: open ? v.q.ok : null, counts: open ? v.counts : null }) : '',
-    'r-foot': say, 'r-players': chips, 'r-ladder': ladderHtml(v.qi, open),
+    'r-foot': say, 'r-players': chips, 'r-ladder': ladderHtml(v.qi, open, true),
   });
 }
 function boardView() {
@@ -539,12 +603,12 @@ function boardView() {
   const ps = sorted(v.players);
   const rows = ps.map((p, i) => `<tr><td>${medal(i + 1)}</td><td>${esc(p.name)}</td>${p.rp.map((x, r) => `<td class="n" style="${r > v.round ? 'opacity:.3' : ''}">${fmt(x)}</td>`).join('')}<td class="n">${fmt(p.total)}</td></tr>`).join('');
   const table = `<div class="panel rise"><table class="table"><thead><tr><th></th><th>Gracz</th><th class="n">R1</th><th class="n">R2</th><th class="n">R3</th><th class="n">Suma</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  const pod = end ? `<div class="podium">${[1, 0, 2].map(i => ps[i] ? `<div class="st p${i + 1}"><b>${esc(ps[i].name)}</b><span>${fmt(ps[i].total)} pkt</span><i>${i + 1}</i></div>` : '').join('')}</div>` : '';
+  const pod = `<div class="podium">${[1, 0, 2].map(i => ps[i] ? `<div class="st p${i + 1}"><b>${esc(ps[i].name)}</b><span>${fmt(ps[i].total)} pkt</span><i>${i + 1}</i></div>` : '').join('')}</div>`;
   const btns = end
     ? `<button class="btn big" data-act="host-reset">Rewanż</button><button class="btn ghost" data-act="rank">Ranking</button><button class="btn ghost" data-act="host-close">Zamknij pokój</button>`
     : `<button class="btn big" data-act="host-next">Runda ${v.round + 2} →</button><button class="btn ghost" data-act="host-leave">Menu</button>`;
   page(`<div class="board"><div class="kicker">${end ? 'Koniec meczu' : `Koniec rundy ${v.round + 1} z ${v.rounds}`}</div>
-    <h2>${end ? (ps[0] ? `Wygrywa ${esc(ps[0].name)}!` : 'Koniec') : 'Tabela po rundzie'}</h2>${pod}${table}
+    <h2>${end ? (ps[0] ? `Wygrywa ${esc(ps[0].name)}!` : 'Koniec') : 'Tabela po rundzie'}</h2>${pod}${statsHtml(v.players)}${table}
     <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">${btns}</div>${statusHtml(host.status)}</div>`);
 }
 
@@ -600,7 +664,7 @@ document.addEventListener('click', async e => {
   if (a === 'snd-m') { Snd.setMusic(!Snd.st.m); return soundBar(); }
   if (a === 'snd-s') { Snd.setSfx(!Snd.st.s); return soundBar(); }
   if (a === 'snd-cfg') return soundCfg();
-  if (a === 'home') { ui.screen = 'home'; music(false); Snd.hush(false); document.body.classList.remove('hot', 'win'); return render(); }
+  if (a === 'home') { ui.screen = 'home'; music(false); Snd.hush(false); document.body.classList.remove('hot', 'win', 'tense'); return render(); }
   if (a === 'home-x') { e.preventDefault(); return hostLeave(); }
   if (a === 'solo-setup') { ui.screen = 'solo-setup'; return render(); }
   if (a === 'time') {

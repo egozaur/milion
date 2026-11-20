@@ -19,7 +19,7 @@
 <link rel="stylesheet" href="common.css">
 <style>
 body{font-size:17px}
-.ph{flex:1;display:flex;flex-direction:column;gap:14px;padding:max(14px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom));max-width:620px;width:100%;margin:0 auto}
+.ph{flex:1;display:flex;flex-direction:column;gap:14px;padding:max(14px,env(safe-area-inset-top)) 16px calc(76px + env(safe-area-inset-bottom));max-width:620px;width:100%;margin:0 auto}
 .ph header{display:flex;align-items:center;gap:10px}
 .ph header .grow{flex:1}
 .ph header .me{font-weight:800}
@@ -59,12 +59,21 @@ body{font-size:17px}
 <body>
 <div id="fx" aria-hidden="true"><div class="spot l"></div><div class="spot r"></div><div class="floor"></div></div>
 <div id="app"></div>
+<div class="emobar" id="emo" hidden></div>
 <div id="ovl"></div>
 <script src="ml.js"></script>
 <script>
 'use strict';
 const { LADDER, LET, esc, zl, fmt, Snd } = ML;
-const $app = document.getElementById('app'), $ovl = document.getElementById('ovl');
+const $app = document.getElementById('app'), $ovl = document.getElementById('ovl'), $emo = document.getElementById('emo');
+const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Błysk po odsłonięciu odpowiedzi (jak na TV): złoty = dobrze, czerwony = źle.
+function fxReveal(good) {
+  if (calm()) return;
+  const b = document.body, c = good ? 'fx-good' : 'fx-bad';
+  b.classList.remove('fx-good', 'fx-bad'); void b.offsetWidth; b.classList.add(c);
+  setTimeout(() => b.classList.remove(c), 1300);
+}
 Snd.music(false);
 
 const st = { code: '', token: '', id: '', conn: null, status: '', view: null, err: '', joining: false, kicked: false };
@@ -93,12 +102,14 @@ const T = { deadline: 0, total: 0, last: -1 };
 function loop() {
   requestAnimationFrame(loop);
   if (!T.deadline) return;
-  const left = Math.max(0, T.deadline - performance.now()), low = left < 5500;
+  const now = performance.now(), left = Math.max(0, T.deadline - now), low = left < 5500, mid = !low && T.total && left / T.total < 0.5;
   const bar = document.querySelector('#r-timer .timer i'), num = document.querySelector('#r-timer .tnum');
-  if (bar) { bar.style.transform = `scaleX(${T.total ? left / T.total : 0})`; bar.parentNode.classList.toggle('low', low); }
+  if (bar) { bar.style.transform = `scaleX(${T.total ? left / T.total : 0})`; bar.parentNode.classList.toggle('low', low); bar.parentNode.classList.toggle('mid', !!mid); }
   const s = Math.ceil(left / 1000);
-  if (num) { num.textContent = s; num.classList.toggle('low', low); }
-  if (s !== T.last) { if (low && s > 0 && T.last > s && canAnswer()) { Snd.play('tick'); try { navigator.vibrate && navigator.vibrate(30); } catch (e) {} } T.last = s; }
+  if (num) { num.textContent = s; num.classList.toggle('low', low); num.classList.toggle('mid', !!mid); }
+  // tykanie przyspiesza w ostatnich sekundach (tylko gdy gracz jeszcze może odpowiedzieć)
+  if (low && left > 0 && now >= (T.nextTick || 0) && canAnswer()) { Snd.play('tick'); T.nextTick = now + 160 + 840 * (left / 5500); }
+  if (s !== T.last) { if (low && s > 0 && T.last > s && canAnswer()) { try { navigator.vibrate && navigator.vibrate(30); } catch (e) {} } T.last = s; }
   if (!left) T.deadline = 0;
 }
 requestAnimationFrame(loop);
@@ -121,19 +132,34 @@ function connect() {
         if (m.code === 'badplayer') { forget(); st.err = m.err; }
         else if (m.code === 'started' || m.code === 'full' || m.code === 'noname') { st.err = m.err; st.conn.stop('closed'); st.conn = null; }
         else st.err = m.err || 'Błąd';
-      } else if (m.t === 'state') onState(m.view);
+      } else if (m.t === 'state') incoming(m.view);
       render();
     },
   });
 }
 function forget() { st.token = ''; try { localStorage.removeItem(tokKey(st.code)); } catch (e) {} if (st.conn) { st.conn.stop('closed'); st.conn = null; } }
 
+// Napięcie przed odsłonięciem: wynik (stan „reveal”) czeka chwilę, żeby telefon nie zdradził go przed ekranem TV.
+function holdOff() { clearTimeout(st.holdT); st.holdT = 0; st.pend = null; document.body.classList.remove('tense'); }
+function incoming(v) {
+  if (st.holdT) {
+    if (v.phase === 'reveal' && st.pend && v.qi === st.pend.qi && v.round === st.pend.round) { st.pend = v; return; }
+    holdOff();
+  }
+  const old = st.view;
+  if (v.phase === 'reveal' && old && old.phase === 'q' && old.qi === v.qi && old.round === v.round) {
+    st.pend = v; document.body.classList.add('tense');
+    st.holdT = setTimeout(() => { const p = st.pend; st.holdT = 0; st.pend = null; document.body.classList.remove('tense'); if (p) { onState(p); render(); } }, 1500 + v.qi * 60);
+    return;
+  }
+  onState(v);
+}
 function onState(v) {
   const old = st.view; st.view = v;
   if (v.phase === 'q') { T.deadline = performance.now() + v.left; T.total = v.time * 1000; } else T.deadline = 0;
   const changed = !old || old.phase !== v.phase || old.qi !== v.qi || old.round !== v.round;
   if (changed && v.phase === 'reveal' && v.me.correct != null) {
-    Snd.play(v.me.correct ? 'good' : 'bad');
+    Snd.play(v.me.correct ? 'good' : 'bad'); fxReveal(!!v.me.correct);
     try { navigator.vibrate && navigator.vibrate(v.me.correct ? [40, 60, 40] : 300); } catch (e) {}
   }
   if (changed && v.phase === 'q' && !v.me.out) { Snd.play('tap'); }
@@ -240,7 +266,15 @@ function boardView() {
     <p class="note">${end ? 'Prowadzący może zaczynać rewanż.' : 'Następna runda za chwilę — patrz na ekran TV.'}</p></div>
     ${listHtml(v.board)}</div>`);
 }
+// Pasek emotek: wysyłane do ekranu TV (serwer ogranicza tempo, tu dodatkowa przerwa, żeby przyciski „odpoczywały”).
+const emoCool = { until: 0 };
+function emoBar() {
+  const show = !!(st.code && st.token && st.view && st.status !== 'noroom');
+  $emo.hidden = !show;
+  if (show && !$emo._h) { $emo.innerHTML = ML.EMO.map((e, i) => `<button data-act="emo" data-e="${i}" aria-label="Emotka ${e}">${e}</button>`).join(''); $emo._h = 1; }
+}
 function render() {
+  emoBar();
   if (!st.code || !st.token || (!st.view && !st.conn)) return page(joinView());
   if (st.status === 'noroom') return page(`<div class="ph">${header()}<div class="center"><h2>Pokój nie istnieje</h2><p class="note">Zeskanuj aktualny kod QR z ekranu TV.</p></div></div>`);
   const v = st.view;
@@ -255,6 +289,13 @@ document.addEventListener('click', e => {
   const a = el.dataset.act;
   Snd.unlock();
   if (a === 'join') return join();
+  if (a === 'emo') {
+    const t = Date.now(); if (t < emoCool.until || !st.conn) return;
+    emoCool.until = t + 1000; st.conn.send({ t: 'emo', e: Number(el.dataset.e) });
+    $emo.classList.add('cool'); setTimeout(() => $emo.classList.remove('cool'), 1000);
+    try { navigator.vibrate && navigator.vibrate(15); } catch (e) {}
+    return;
+  }
   if (a === 'home') { if (confirm('Wrócić do lobby PL3Y? Możesz wrócić do gry, skanując kod ponownie.')) location.href = '/'; return; }
   if (a === 'ans') {
     if (!canAnswer()) return;

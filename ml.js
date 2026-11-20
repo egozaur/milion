@@ -301,7 +301,15 @@
     };
   })();
 
-  window.ML = { LADDER, SAFE, TIMES, DIFFS, API, BASE_URL, LOCAL, APP, LET, esc, fmt, zl, shuffle, guaranteed, mix, pickSet, pickPool, audienceSim,
+  // Emotki z telefonu (indeks = to, co idzie przez serwer; EMOTES w room.js musi się zgadzać) i awatar gracza z inicjałem.
+  const EMO = ['👏', '😂', '😮', '😱', '🔥', '🤔', '😭', '🎉'];
+  const av = name => {
+    const n = String(name || '?'); let h = 0;
+    for (const c of n) h = (h * 31 + c.codePointAt(0)) % 360;
+    return `<span class="av" style="--h:${h}">${esc([...n.trim()][0] ? [...n.trim()][0].toUpperCase() : '?')}</span>`;
+  };
+
+  window.ML = { EMO, av, LADDER, SAFE, TIMES, DIFFS, API, BASE_URL, LOCAL, APP, LET, esc, fmt, zl, shuffle, guaranteed, mix, pickSet, pickPool, audienceSim,
     Conn, api, createRoom: () => api('POST', '/api/ml/rooms'), scores: () => api('GET', '/api/ml/scores'),
     postSolo: e => api('POST', '/api/ml/scores', e), joinUrl, qrSvg, nick, Snd };
 })();
