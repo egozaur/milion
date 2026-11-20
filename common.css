@@ -35,7 +35,7 @@ body.win #fx .spot{background:linear-gradient(180deg,rgba(255,226,140,.38),rgba(
 #app{position:relative;z-index:1;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
 
 /* ---------- logo ---------- */
-.logo{font:800 clamp(44px,9vw,110px)/1 var(--disp);letter-spacing:.04em;text-align:center;margin:0;
+.logo{font:800 clamp(36px,8.5vw,110px)/1 var(--disp);letter-spacing:.04em;text-align:center;margin:0;
   background:linear-gradient(180deg,#fff6d6 0%,var(--gold) 45%,var(--gold3) 70%,var(--gold2) 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 6px 30px rgba(246,198,78,.35))}
 .logo small{display:block;font:700 clamp(12px,1.6vw,17px)/1 var(--font);letter-spacing:.5em;margin-top:.7em;color:var(--muted);
