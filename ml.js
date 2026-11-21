@@ -10,7 +10,9 @@
     n: { name: 'Normalny', map: [1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5] },
     x: { name: 'Ekstremalny', map: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5] },
   };
-  const API = 'https://pl3y-server.pl3y.workers.dev';
+  let API = 'https://pl3y-server.pl3y.workers.dev';
+  // Testy lokalne (tylko http://localhost): localStorage.pl3y_dev_api = adres lokalnego Workera (wrangler dev), jak w /auth.js.
+  try { if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && localStorage.getItem('pl3y_dev_api')) API = localStorage.getItem('pl3y_dev_api'); } catch (e) {}
 
 // Token sesji PL3Y: wydaje go serwer po podaniu hasła w bramce (/auth.js), tu tylko go odczytujemy.
 // Do zapytań HTTP idzie nagłówkiem Authorization, do WebSocketu parametrem ?tok= (przeglądarka nie ustawi nagłówka).
@@ -104,7 +106,7 @@ const onAuthFail = r => { if (r.status === 401 && window.PL3Y && window.PL3Y.exp
     return port;
   }
   class LocalSocket {
-    constructor(code) { this.cid = ++cidSeq; this.readyState = 0; socks.set(this.cid, this); localPort().postMessage({ t: 'connect', cid: this.cid, code }); }
+    constructor(code) { this.cid = ++cidSeq; this.readyState = 0; socks.set(this.cid, this); const p = player.get(); localPort().postMessage({ t: 'connect', cid: this.cid, code, pl: p ? { n: p.n, nick: p.nick } : null }); }
     send(d) { port.postMessage({ t: 'send', cid: this.cid, data: d }); }
     close() { if (this.readyState > 1) return; this.readyState = 3; socks.delete(this.cid); port.postMessage({ t: 'close', cid: this.cid }); }
   }
@@ -124,7 +126,7 @@ const onAuthFail = r => { if (r.status === 401 && window.PL3Y && window.PL3Y.exp
       if (this.stopped) return;
       this.setStatus(this.retry ? 'reconnecting' : 'connecting');
       let ws;
-      try { ws = LOCAL ? new LocalSocket(this.o.code) : new WebSocket(API.replace(/^http/, 'ws') + '/api/ml/rooms/' + encodeURIComponent(this.o.code) + '/ws' + wsTok()); }
+      try { ws = LOCAL ? new LocalSocket(this.o.code) : new WebSocket(API.replace(/^http/, 'ws') + '/api/ml/rooms/' + encodeURIComponent(this.o.code) + '/ws' + wsTok() + ptParam()); }
       catch (e) { return this.later(); }
       this.ws = ws;
       ws.onopen = () => { this.retry = 0; this.lastMsg = Date.now(); this.raw(this.o.hello()); };
@@ -179,7 +181,12 @@ const onAuthFail = r => { if (r.status === 401 && window.PL3Y && window.PL3Y.exp
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
     try {
       const r = await fetch(API + path, { method, signal: ctl.signal, headers: authHead(body !== undefined ? { 'Content-Type': 'application/json' } : {}), body: body !== undefined ? JSON.stringify(body) : undefined });
-      onAuthFail(r);
+      if (r.status === 401) {
+        // 401 „player” = token gracza nieważny (np. reset PIN-u): ekran nicka; inaczej sesja PL3Y wygasła: bramka hasła
+        let j = {}; try { j = await r.clone().json(); } catch (e) {}
+        if (j.code === 'player') { if (window.PL3Y && window.PL3Y.player) window.PL3Y.player.expired(); }
+        else onAuthFail(r);
+      }
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.json();
     } finally { clearTimeout(t); }
@@ -198,6 +205,16 @@ const onAuthFail = r => { if (r.status === 401 && window.PL3Y && window.PL3Y.exp
     get() { try { return localStorage.getItem('milion_nick') || ''; } catch (e) { return ''; } },
     set(v) { try { localStorage.setItem('milion_nick', String(v || '').trim().slice(0, 16)); } catch (e) {} },
   };
+  // Gracz PL3Y (nick + PIN z /auth.js): tylko on trafia do rankingu, a nick bierze serwer z tokenu gracza.
+  // Lokalnie (?local=1, bez /auth.js) zastępuje go nick wpisany w pole (milion_nick).
+  const hub = () => (window.PL3Y && window.PL3Y.player ? window.PL3Y.player : null);
+  const player = {
+    managed: () => !!hub(),
+    get() { const h = hub(); if (h) return h.get(); const n = nick.get(); return LOCAL && n ? { nick: n, n: n.toLowerCase(), avatar: 0, pt: 'local' } : null; },
+    ask() { const h = hub(); return h ? h.ask() : Promise.resolve(player.get()); },
+    change() { const h = hub(); return h ? h.change() : Promise.resolve(player.get()); },
+  };
+  function ptParam() { const p = player.get(); return p && p.pt && !LOCAL ? (wsTok() ? '&' : '?') + 'pt=' + encodeURIComponent(p.pt) : ''; }
 
   // ---------- dźwięk ----------
   const Snd = (() => {
@@ -320,5 +337,6 @@ const onAuthFail = r => { if (r.status === 401 && window.PL3Y && window.PL3Y.exp
 
   window.ML = { EMO, av, LADDER, SAFE, TIMES, DIFFS, API, BASE_URL, LOCAL, APP, LET, esc, fmt, zl, shuffle, guaranteed, mix, pickSet, pickPool, audienceSim,
     Conn, api, createRoom: () => api('POST', '/api/ml/rooms'), scores: () => api('GET', '/api/ml/scores'),
-    postSolo: e => api('POST', '/api/ml/scores', e), joinUrl, qrSvg, nick, Snd };
+    postSolo: e => { const p = player.get(); return api('POST', '/api/ml/scores', { ...e, pt: p && p.pt, nick: p && p.nick, n: p && p.n }); },
+    joinUrl, qrSvg, nick, player, Snd };
 })();

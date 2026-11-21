@@ -11,11 +11,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="theme-color" content="#03061a">
+<meta name="theme-color" content="#0C0B09">
 <meta name="robots" content="noindex, nofollow">
 <script src="/auth.js" data-no-idle></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Unbounded:wght@600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/pl3y.css?v=1">
 <link rel="stylesheet" href="common.css">
 <style>
 body{font-size:17px}
@@ -24,7 +24,7 @@ body{font-size:17px}
 .ph header .grow{flex:1}
 .ph header .me{font-weight:800}
 .ph header .pts{font:700 14px/1 var(--disp);color:var(--gold2);background:rgba(0,0,0,.3);padding:7px 11px;border-radius:999px}
-.mini{font:800 24px/1 var(--disp);letter-spacing:.03em;background:linear-gradient(180deg,#fff6d6,var(--gold) 50%,var(--gold3));-webkit-background-clip:text;background-clip:text;color:transparent}
+.mini{font:700 28px/1 var(--serif);letter-spacing:.02em;background:linear-gradient(180deg,#F6EBCB,var(--gold) 50%,var(--gold3));-webkit-background-clip:text;background-clip:text;color:transparent}
 .mini .mark{font-size:.6em}
 .info{font:800 14px/1.3 var(--disp);color:var(--muted)}
 .info em{font-style:normal;color:var(--gold2)}
@@ -40,7 +40,7 @@ body{font-size:17px}
 .trow .timer{flex:1}
 .tnum{font-size:26px}
 .form{display:flex;flex-direction:column;gap:12px;align-items:stretch}
-.field{background:rgba(3,6,26,.6);border:1.5px solid var(--line);color:var(--text);border-radius:999px;padding:.9em 1.2em;text-align:center;font-weight:800;font-size:18px}
+.field{background:rgba(12,11,9,.6);border:1.5px solid var(--line);color:var(--text);border-radius:999px;padding:.9em 1.2em;text-align:center;font-weight:800;font-size:18px}
 .field:focus{outline:none;border-color:var(--gold)}
 .err{color:var(--bad);font-weight:700}
 .vote{padding:14px;display:flex;flex-direction:column;gap:12px}
@@ -49,7 +49,7 @@ body{font-size:17px}
 .aud{height:130px}
 .list{display:flex;flex-direction:column;gap:6px}
 .list div{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.04);font-weight:700}
-.list div.me{background:rgba(246,198,78,.12);box-shadow:inset 0 0 0 1.5px var(--gold3)}
+.list div.me{background:rgba(201,168,92,.12);box-shadow:inset 0 0 0 1.5px var(--gold3)}
 .list div.out{opacity:.45}
 .list b{font:600 14px/1 var(--disp);color:var(--gold2)}
 .list .l{display:flex;align-items:center;gap:10px;min-width:0}
@@ -121,7 +121,7 @@ function connect() {
   st.err = ''; st.status = 'connecting';
   st.conn = new ML.Conn({
     code: st.code,
-    hello: () => st.token ? { t: 'hello', player: st.token } : { t: 'hello', join: ML.nick.get() },
+    hello: () => st.token ? { t: 'hello', player: st.token } : { t: 'hello', join: (ML.player.get() || {}).nick || ML.nick.get() },
     onStatus: s => { st.status = s; if (s === 'revoked') st.kicked = true; render(); },
     onMessage: m => {
       if (m.t === 'welcome') {
@@ -167,10 +167,10 @@ function onState(v) {
 }
 
 function join() {
-  const n = document.getElementById('nick');
-  const nick = n ? n.value.trim() : '';
+  const p = ML.player.managed() ? ML.player.get() : null, n = document.getElementById('nick');
+  const nick = p ? p.nick : n ? n.value.trim() : '';
   if (!nick) { st.err = 'Wpisz swój nick.'; return render(); }
-  ML.nick.set(nick);
+  if (!p) ML.nick.set(nick);
   const c = document.getElementById('code');
   if (c) { st.code = c.value.trim().toUpperCase(); if (!/^[A-Z0-9]{5}$/.test(st.code)) { st.err = 'Kod pokoju ma 5 znaków.'; return render(); } history.replaceState(null, '', '#' + st.code); }
   st.joining = true; st.kicked = false; Snd.unlock(); Snd.play('tap');
@@ -183,6 +183,13 @@ function header() {
   const v = st.view;
   return `<header>${homeBtn}${logo}<span class="grow"></span>${st.status && STATUS[st.status] ? `<span class="status">${STATUS[st.status]}</span>` : ''}${v ? `<span class="me">${esc(v.me.name)}</span><span class="pts">${fmt(v.me.total)}</span>` : ''}</header>`;
 }
+// Gracz PL3Y (nick + PIN) dołącza pod swoim nickiem i trafia do rankingu; gość wpisuje nick, ale rankingu nie ma.
+function nickField() {
+  const p = ML.player.managed() ? ML.player.get() : null;   // lokalnie (bez /auth.js) zawsze pole na nick
+  if (p) return `<p class="note">Grasz jako <b style="color:var(--gold2)">${esc(p.nick)}</b> · <button class="link" data-act="nick-change">zmień</button></p>`;
+  return `<input class="field" id="nick" maxlength="16" placeholder="Twój nick" value="${esc(ML.nick.get())}" autocomplete="off" enterkeyhint="go">` +
+    (ML.player.managed() ? '<p class="note" style="font-size:13px">Jako gość nie trafisz do rankingu. <button class="link" data-act="nick-set">Zaloguj nickiem</button></p>' : '');
+}
 function joinView() {
   const needCode = !st.code;
   return `<div class="ph">${header()}<div class="center">
@@ -190,7 +197,7 @@ function joinView() {
     ${st.kicked ? '<p class="note">Prowadzący usunął Cię z pokoju. Możesz dołączyć ponownie.</p>' : ''}
     <div class="form">
       ${needCode ? '<input class="field" id="code" maxlength="5" placeholder="KOD POKOJU" autocapitalize="characters" autocomplete="off" style="letter-spacing:.2em">' : `<p class="note">Pokój <b style="color:var(--gold2)">${esc(st.code)}</b></p>`}
-      <input class="field" id="nick" maxlength="16" placeholder="Twój nick" value="${esc(ML.nick.get())}" autocomplete="off" enterkeyhint="go">
+      ${nickField()}
       <button class="btn big" data-act="join" ${st.joining ? 'disabled' : ''}>${st.joining ? 'Dołączam…' : 'Dołącz'}</button>
       ${st.err ? `<p class="err">${esc(st.err)}</p>` : ''}
     </div></div></div>`;
@@ -289,6 +296,8 @@ document.addEventListener('click', e => {
   const a = el.dataset.act;
   Snd.unlock();
   if (a === 'join') return join();
+  if (a === 'nick-set') return ML.player.ask().then(render);
+  if (a === 'nick-change') return ML.player.change().then(render);
   if (a === 'emo') {
     const t = Date.now(); if (t < emoCool.until || !st.conn) return;
     emoCool.until = t + 1000; st.conn.send({ t: 'emo', e: Number(el.dataset.e) });

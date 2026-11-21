@@ -96,7 +96,9 @@ onconnect = e => {
         ws.close(4404, 'noroom'); conns.delete(key);
         return;
       }
-      r.run(async () => r.room.attach(ws, await r.room.load()));
+      // gracz z nickiem (lokalnie bez PIN-u) jak potwierdzony gracz na serwerze
+      const pl = m.pl && typeof m.pl.n === 'string' ? { n: m.pl.n, nick: String(m.pl.nick || '') } : null;
+      r.run(async () => r.room.attach(ws, await r.room.load(), pl));
     } else if (m.t === 'send') {
       const ws = conns.get(key);
       if (!ws || !ws.open) return;
